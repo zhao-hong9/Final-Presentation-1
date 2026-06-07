@@ -1,0 +1,5 @@
+Variant,OA,AA,Kappa,Macro-AUC,Params
+Baseline,0.8548,0.8548,0.8257,0.9764,45272
+BandDrop only,0.8548,0.8548,0.8257,0.9764,45272
+Graph+BandDrop,0.8571,0.8571,0.8286,0.9784,45272
+Focal+Graph+BandDrop,0.8724,0.8724,0.8469,0.9792,45272
