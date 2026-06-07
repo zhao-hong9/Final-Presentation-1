@@ -1,0 +1,297 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+%% ---- Packages ------------------------------------------------------------
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage[table]{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{array}
+\usepackage{makecell}
+
+%% ---- Title ---------------------------------------------------------------
+\begin{document}
+
+\title{
+    Reproducing and Improving HDCGNet:\\
+    Class-Balanced Loss and SSIM Hypergraph Enhancement
+}
+
+\author{
+    \IEEEauthorblockN{Student Name}
+    \IEEEauthorblockA{
+        \textit{Department of Computer Science and Information Engineering}\\
+        \textit{National Yunlin University of Science and Technology}\\
+        Yunlin, Taiwan\\
+        student@yuntech.edu.tw
+    }
+}
+
+\maketitle
+
+%% ---- Abstract ------------------------------------------------------------
+\begin{abstract}
+This report reproduces and extends HDCGNet, a hypergraph dual-branch CNN--GCN network for Mars hyperspectral image classification. The original paper targets mineral classification from Mars hyperspectral imagery by combining local CNN features with global hypergraph topology. Since the inspected public repository did not include the final model implementation and the complete hyperspectral cubes were not available in the local workspace, we conduct a faithful partial reproduction on a controlled Mars-like synthetic HSI benchmark. Two improvements are evaluated: class-balanced focal loss for minority mineral classes and SSIM+k-hop hypergraph construction with band dropout for spectral robustness. The baseline overall accuracy is 0.8092, while the full improved model reaches 0.9019, yielding a 9.27 percentage-point gain.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Hyperspectral image classification, Mars mineral mapping, CNN, graph convolutional network, hypergraph learning, class imbalance
+\end{IEEEkeywords}
+
+%% -------------------------------------------------------------------------
+\section{Introduction}
+Mars hyperspectral image (HSI) classification is an important remote-sensing task because spectral reflectance can reveal surface mineral composition. Accurate mineral maps support landing-site analysis, geological interpretation, and planetary science. However, Mars HSI classification is difficult because mineral spectra may be highly similar, labels are sparse, and local texture alone may not capture long-range geological context.
+
+\noindent\textbf{Motivation.}
+The target paper, HDCGNet~\cite{original_paper}, addresses this problem by combining a convolutional neural network (CNN) branch and a graph convolutional network (GCN) branch. The CNN branch extracts local spectral-spatial features, while the graph branch models non-local relationships among hyperpixels. This is closely related to image recognition because the model must learn discriminative visual and spectral patterns under limited supervision.
+
+\noindent\textbf{Contribution.}
+In this report, we make the following contributions:
+\begin{itemize}
+    \item \textbf{Reproduction:} We implement a lightweight HDCGNet-inspired CNN--GCN fusion model on a synthetic Mars-like HSI benchmark.
+    \item \textbf{Improvement 1:} We use class-balanced focal loss to reduce the effect of imbalanced mineral classes, improving OA from 0.8092 to 0.8341.
+    \item \textbf{Improvement 2:} We enhance graph construction with SSIM spectral similarity, k-hop context, and band dropout, improving the final OA to 0.9019.
+\end{itemize}
+
+%% -------------------------------------------------------------------------
+\section{Related Work}
+Table~\ref{tab:related} summarizes representative methods for HSI classification. Compared with CNN-only methods, HDCGNet explicitly combines local patch features and graph-level topology. Compared with graph-only methods, it preserves the pixel-level representation strength of CNNs.
+
+\begin{table*}[t]
+\centering
+\caption{Comparison of Related Works on Hyperspectral Image Classification}
+\label{tab:related}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{
+    p{2.4cm}
+    p{1.8cm}
+    p{2.5cm}
+    p{2.3cm}
+    p{1.2cm}
+    p{1.4cm}
+    p{3.4cm}
+}
+\toprule
+\textbf{Method} &
+\textbf{Publication} &
+\textbf{Backbone} &
+\textbf{Dataset} &
+\textbf{OA} &
+\textbf{Params} &
+\textbf{Key Contribution} \\
+\midrule
+
+HybridSN~\cite{hybridsn} &
+GRSL 2019 &
+3D/2D CNN &
+Indian Pines / Pavia &
+-- &
+-- &
+Joint spectral-spatial convolution for local HSI feature extraction \\
+
+\midrule
+A2S2K-ResNet~\cite{a2s2k} &
+TGRS 2020 &
+Attention ResNet &
+HSI benchmarks &
+-- &
+-- &
+Adaptive spectral-spatial kernels with attention-enhanced CNN features \\
+
+\midrule
+AMGCFN~\cite{amgcfn} &
+TGRS 2023 &
+Graph + multiscale CNN &
+HSI benchmarks &
+-- &
+-- &
+Attention multihop graph and multiscale convolutional fusion \\
+
+\midrule
+HDCGNet~\cite{original_paper} &
+TGRS 2026 &
+Dual CNN--GCN + hypergraph &
+Mars HC / NF / UP &
+Reported high OA &
+-- &
+Hypergraph dual-branch fusion for Mars mineral classification \\
+
+\midrule
+\rowcolor{yellow!20}
+\textbf{Ours} &
+\textbf{2026} &
+\textbf{HDCGNet-lite} &
+\textbf{Synthetic Mars HSI} &
+\textbf{0.9019} &
+\textbf{51k} &
+\textbf{Class-balanced focal loss + SSIM k-hop hypergraph + band dropout} \\
+
+\bottomrule
+\end{tabular}
+\vspace{1mm}
+\caption*{\small OA = Overall Accuracy. ``--'' indicates that the metric is not directly comparable or not reported in the cited summary.}
+\end{table*}
+
+\subsection{CNN-Based HSI Classification}
+CNN-based HSI models learn spectral-spatial features from local patches. They are effective for local textures and spectral signatures, but the receptive field can limit long-range dependency modeling.
+
+\subsection{GCN and Hypergraph Learning}
+GCN-based methods build graph nodes from pixels or superpixels and propagate information through spectral-spatial adjacency. HDCGNet extends this idea with hypergraph learning, allowing one hyperedge to connect multiple related hyperpixels.
+
+\subsection{Dual-Branch Fusion}
+Dual-branch CNN--GCN models attempt to combine local and global representations. HDCGNet uses adaptive cross-attention fusion so that the model can weight CNN and graph features for each prediction.
+
+%% -------------------------------------------------------------------------
+\section{Methodology}
+\subsection{Dataset}
+Because the full official Mars HSI cubes were not available in the local workspace, we create a controlled synthetic Mars-like HSI cube with four mineral classes, 48 spectral bands, and imbalanced spatial regions. The spectra include absorption-like curves and spatial noise to mimic mineral reflectance variation.
+
+\subsection{Backbone Architecture}
+The reproduction implements a lightweight HDCGNet-inspired network. The CNN branch uses depthwise separable convolution and local patches. The graph branch propagates pixel spectra through a normalized graph. Branch features are fused by learned attention:
+\begin{equation}
+    z = a_{cnn} f_{cnn} + a_{gcn} f_{gcn} .
+    \label{eq:fusion}
+\end{equation}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/method_architecture.png}
+    \caption{Implemented HDCGNet-inspired pipeline with CNN local features, SSIM+k-hop graph context, and adaptive fusion.}
+    \label{fig:method}
+\end{figure}
+
+\subsection{Hypergraph / Graph Propagation}
+The graph branch follows the normalized hypergraph convolution form:
+\begin{equation}
+    X' = D_v^{-\frac12} H W D_e^{-1} H^\top D_v^{-\frac12} X \Theta ,
+    \label{eq:hypergraph}
+\end{equation}
+where $H$ is the incidence matrix, $W$ is the hyperedge weight matrix, and $D_v$, $D_e$ are node and edge degree matrices. In the implementation, spatial neighbors and SSIM-based spectral similarity approximate hyperedge construction.
+
+\subsection{Improvement 1: Class-Balanced Focal Loss}
+To handle imbalanced mineral classes, we replace ordinary cross-entropy with class-balanced focal loss:
+\begin{equation}
+    L = -\alpha_c (1-p_t)^\gamma \log(p_t),
+    \label{eq:focal}
+\end{equation}
+where $\alpha_c$ is computed from class frequency and $\gamma=2$ focuses learning on hard samples.
+
+\subsection{Improvement 2: SSIM+k-Hop Graph and Band Dropout}
+The original paper emphasizes multi-strategy hyperedges. We reproduce this idea by combining local spatial edges, SSIM spectral similarity, and k-hop context. We also apply band dropout during training to improve robustness against noisy or redundant spectral bands.
+
+%% -------------------------------------------------------------------------
+\section{Experiments}
+\subsection{Implementation Details}
+All experiments are implemented in PyTorch and executed in the Anaconda \texttt{final1} environment on CPU. Each class uses 22 training pixels and 10 validation pixels; all remaining labeled pixels are used for testing. The model has 51,130 trainable parameters and is trained for 22 epochs.
+
+\subsection{Main Results}
+Table~\ref{tab:results} reports the ablation performance. Each improvement contributes a measurable gain, and the full configuration achieves the best OA, AA, and Kappa.
+
+\begin{table}[t]
+\centering
+\caption{Ablation Results on Synthetic Mars HSI}
+\label{tab:results}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Method} & \textbf{OA} & \textbf{AA} & \textbf{Kappa} & \textbf{AUC} \\
+\midrule
+Baseline & 0.8092 & 0.6863 & 0.6987 & 0.9988 \\
+Improve-1 Focal & 0.8341 & 0.7088 & 0.7397 & 0.9991 \\
+Improve-2 Graph & 0.8475 & 0.7323 & 0.7694 & 1.0000 \\
+Full + BandDrop & 0.9019 & 0.8468 & 0.8511 & 0.9997 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ablation Study}
+Class-balanced focal loss increases OA from 0.8092 to 0.8341. Adding SSIM+k-hop graph construction further increases OA to 0.8475. The full model with band dropout reaches 0.9019 OA and 0.8511 Kappa, indicating that spectral robustness and graph context are complementary.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/ablation_table_chart.png}
+    \caption{Ablation chart comparing OA, AA, Kappa, and macro-AUC across variants.}
+    \label{fig:ablation}
+\end{figure}
+
+\subsection{Confusion Matrix and ROC Analysis}
+The confusion matrix in Fig.~\ref{fig:cm} shows that most classes are correctly separated by the full model, while remaining errors mainly occur in minority or spectrally overlapping regions. The ROC curves in Fig.~\ref{fig:roc} show high one-vs-rest separability in the controlled benchmark.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.88\linewidth]{figures/confusion_matrix.png}
+    \caption{Confusion matrix of the best model.}
+    \label{fig:cm}
+\end{figure}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.88\linewidth]{figures/roc_curves.png}
+    \caption{One-vs-rest ROC curves of the best model.}
+    \label{fig:roc}
+\end{figure}
+
+\subsection{Qualitative Results}
+Fig.~\ref{fig:cam} provides CAM-like visualizations for representative correct and incorrect cases. Correct cases tend to focus on coherent mineral regions, whereas false cases often occur near boundaries or mixed spectra.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/gradcam_cases.png}
+    \caption{CAM-like visualization for representative classification cases. Warm colors indicate stronger model focus.}
+    \label{fig:cam}
+\end{figure}
+
+%% -------------------------------------------------------------------------
+\section{Discussion}
+\subsection{Comparison with Original Paper}
+The original HDCGNet paper evaluates complete Mars datasets, including Holden Crater, Nili Fossae, and Utopia Planitia. This report reproduces the core mechanism rather than the full official system because the inspected public repository did not include the final model implementation and the full data cubes were unavailable locally. Therefore, the absolute numbers are not directly comparable to the paper; the meaningful result here is the controlled ablation trend.
+
+\subsection{Limitations}
+\begin{itemize}
+    \item \textbf{Dataset:} The experiment uses synthetic Mars-like HSI data, not the full official Mars HSI datasets.
+    \item \textbf{Model scope:} The implementation is HDCGNet-inspired and lightweight; it does not include every module from the paper.
+    \item \textbf{Validation:} Real deployment would require validation on official Mars datasets and expert mineral-map review.
+\end{itemize}
+
+\subsection{Future Work}
+\begin{itemize}
+    \item Run the same ablation on the official HC, NF, and UP datasets once complete data are available.
+    \item Replace the graph approximation with full SLIC hyperpixel segmentation and explicit multi-hyperedge construction.
+    \item Add uncertainty estimation for high-risk mineral boundary regions.
+\end{itemize}
+
+%% -------------------------------------------------------------------------
+\section{Conclusion}
+We reproduced and improved the central idea of HDCGNet for Mars hyperspectral image classification. The class-balanced focal loss and SSIM+k-hop graph enhancement improve the baseline from 0.8092 OA to 0.9019 OA on the controlled benchmark. The results support the main intuition of the original paper: CNN local features and graph-based global context are complementary for hyperspectral image recognition.
+
+%% -------------------------------------------------------------------------
+\begin{thebibliography}{99}
+
+\bibitem{original_paper}
+A. Tian, T. Chen, S. Lei, C. Fu, H. Jin, and Z. Shi,
+``HDCGNet: A Hypergraph Dual-Branch CNN--GCN Network for Mars Hyperspectral Image Classification,''
+\textit{IEEE Transactions on Geoscience and Remote Sensing}, vol. 64, 2026.
+
+\bibitem{hybridsn}
+S. K. Roy, G. Krishna, S. R. Dubey, and B. B. Chaudhuri,
+``HybridSN: Exploring 3-D--2-D CNN Feature Hierarchy for Hyperspectral Image Classification,''
+\textit{IEEE Geoscience and Remote Sensing Letters}, vol. 17, no. 2, pp. 277--281, 2020.
+
+\bibitem{a2s2k}
+S. K. Roy, S. Manna, T. Song, and L. Bruzzone,
+``Attention-Based Adaptive Spectral-Spatial Kernel ResNet for Hyperspectral Image Classification,''
+\textit{IEEE Transactions on Geoscience and Remote Sensing}, 2020.
+
+\bibitem{amgcfn}
+Related dual-branch graph and multiscale convolutional fusion method cited by the original HDCGNet paper.
+
+\end{thebibliography}
+
+\end{document}
