@@ -1,0 +1,1830 @@
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026 5512519
+HDCGNet: A Hypergraph Dual-Branch CNN–GCN
+Network for Mars Hyperspectral
+Image Classiﬁcation
+Anhong Tian
+ , Member, IEEE, Tao Chen, Sen Lei
+ , Member, IEEE, Chengbiao Fu
+ , Member, IEEE,
+Huaiping Jin
+ , Member, IEEE, and Zhenwei Shi
+ , Senior Member, IEEE
+Abstract—The hyperspectral image (HSI) classiﬁcation, as an
+important research direction in the ﬁeld of remote sensing, has
+made signiﬁcant progress in Earth observation. However, its
+application in Mars exploration missions is still in the exploratory
+stage. While convolutional neural networks (CNNs) are eﬀective
+in extracting local features, their inherent local receptive ﬁeld
+restricts the ability to capture long-range spatial dependencies.
+To overcome this limitation, we propose a dual-branch fusion
+architecture, termed HDCGNet, which seamlessly integrates
+CNNs and graph convolutional networks (GCNs), and further
+incorporates hypergraph learning into the GCN branch. This
+design enables the extraction of both local and global information
+from HSI and facilitates the eﬀective modeling of high-order
+nonlinear relationships among multiple nodes. First, a cascade
+processing structure is employed in the CNN feature extraction
+branch to perform spectral denoising and transformation. By
+leveraging depthwise separable convolution (DSC) and cross
+multiscale convolution modules, the model eﬀectively captures
+multiscale spatial–spectral joint features and enhances pixel-level
+feature representation with diﬀerentiated receptive ﬁelds. Second,
+to enrich the topological features of the HSI segmentation area,
+a hypergraph is added to the GCN feature modeling branch,
+while the ContraNorm normalization layer ensures a uniform
+distribution of the representation space and facilitates hyperpixel-
+level feature extraction. Finally, the adaptive cross-attention
+Received 13 December 2025; revised 26 January 2026 and 18 March 2026;
+accepted 5 April 2026. Date of publication 16 April 2026; date of current
+version 13 May 2026. This work was supported in part by the National Natural
+Science Foundation of China under Grant 42361007, in part by Yunnan
+Province Talents Project under Grant 202205AC160005, in part by Yunnan
+Province Xing Dian Young Talents Project under Grant KKXX202303001,
+in part by the School-Level Projects under Grant CB24069D022A and Grant
+KKZ3202403177, and in part by Yunnan Provincial Science and Technol-
+ogy Plan Project under Grant 202449CE340023. (Corresponding authors:
+Chengbiao Fu; Huaiping Jin; Zhenwei Shi.)
+Anhong Tian is with the Faculty of Information Engineering and Automa-
+tion, Kunming University of Science and Technology, Kunming 650500,
+China, also with the Faculty of Land Resources Engineering, Kunming
+University of Science and Technology, Kunming 650093, China, and also
+with the Yunnan Key Laboratory of Intelligent Monitoring and Spatiotemporal
+Big Data Governance of Natural Resources, Kunming 650093, China (e-mail:
+tah@kust.edu.cn).
+Tao Chen, Chengbiao Fu, and Huaiping Jin are with the Faculty of
+Information Engineering and Automation, Kunming University of Science
+and Technology, Kunming 650500, China (e-mail: taochen@stu.kust.edu.cn;
+fcb@kust.edu.cn; jinhuaiping@gmail.com).
+Sen Lei is with the School of Information Science and Technol-
+ogy, Southwest Jiaotong University, Chengdu 611756, China (e-mail:
+senlei@swjtu.edu.cn).
+Zhenwei Shi is with the Department of Aerospace Intelligent Science and
+Technology, School of Astronautics, and the State Key Laboratory of Virtual
+Reality Technology and Systems, Beihang University, Beijing 100191, China
+(e-mail: shizhenwei@buaa.edu.cn).
+Digital Object Identiﬁer 10.1109/TGRS.2026.3684553
+fusion module (ACAFM) is employed to fuse the features of the
+two branches, thereby ensuring complementarity between global
+and local information. Experimental results on three Mars HSI
+datasets demonstrate that HDCGNet achieves better performance
+than some existing methods. Our codes and data will be made
+publicly available at: https://github.com/Ctao0820/HDCGNet.git
+Index Terms—Convolutional neural network (CNN), deep
+learning, graph convolutional network (GCN), hypergraph learn-
+ing, hyperspectral image (HSI) classiﬁcation, Martian minerals.
+I. I NTRODUCTION
+S
+INCE the 1960s, continuous advances in space probe
+technology have enabled the acquisition of multisource
+data from orbiters, landers, and rovers, thereby laying the foun-
+dation for applying deep learning to Martian surface analysis
+[1], [2]. Hyperspectral imaging technology, characterized by
+hundreds of continuous spectral bands, enables accurate identi-
+ﬁcation of mineral distributions on the Martian surface [3], [4],
+which is crucial for investigating the geological evolution of
+Mars. Recently, Martian mineralogy research has entered the
+stage of multidimensional information fusion. Hyperspectral
+classiﬁcation has emerged as an essential technique for inves-
+tigating the geological evolution of Mars, since it provides
+simultaneous access to information on mineral composition
+and spatial distribution. Traditional spectral matching methods
+based on distance metrics are computationally eﬃcient but are
+highly susceptible to noise and mixed pixels. Consequently,
+researchers have developed methods such as probabilistic mod-
+els [5], unsupervised learning, and deep neural networks [6],
+which have signiﬁcantly improved the recognition accuracy.
+However, deep learning methods continue to encounter chal-
+lenges, including the limited availability of annotated data on
+Mars [7] and the high spectral similarity of Martian minerals,
+which constrain the applicability of these models.
+Hyperspectral data contains rich spectral and spatial infor-
+mation [8], [9], [10] and has been widely used in the ﬁelds
+such as agriculture [11], urban planning [12], environmental
+monitoring [13], marine [14], and deep space exploration [15].
+Hyperspectral image (HSI) classiﬁcation is the core technol-
+ogy in these applications, as it analyzes the unique spectral
+characteristics of each pixel to achieve accurate identiﬁcation
+and classiﬁcation of land cover types. In addition, since HSIs
+usually contain hundreds of thousands to millions of pixels,
+directly constructing a network with a single pixel as a graph
+1558-0644 © 2026 IEEE. All rights reserved, including rights for text and data mining, and training of artiﬁcial intelligence and
+similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission.
+See https://www.ieee.org/publications/rights/index.html for more information.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+node will face serious computational complexity problems.
+To solve this problem, the current mainstream methods use
+the simple linear iterative clustering (SLIC) hyperpixel seg-
+mentation technique [16] to preprocess HSI, which aggregates
+adjacent pixels with similar spectral features into hyperpixel
+units, thereby signiﬁcantly reducing the size of the graph.
+Wan et al. [17] proposed a hyperpixel generation method
+based on spectral–spatial joint measurement, which combines
+spectral similarity with spatial proximity to achieve adaptive
+regional aggregation of HSI data, signiﬁcantly improving the
+eﬃciency of subsequent graph convolution operations.
+Convolutional neural network (CNN), as the most com-
+monly used deep learning model [18], has proven its
+eﬀectiveness in HSI classiﬁcation [19], [20]. In the devel-
+opment of HSI classiﬁcation, from the early 1DCNN [21]
+that focused on spectral features, to the 2DCNN [22] that
+introduced spatial information, and then to the 3DCNN [23]
+that jointly extracted spectral and spatial features, CNNs
+have played a crucial role. Researchers have improved the
+performance of CNN through a variety of innovative methods.
+Zhong et al. [24] proposed an end-to-end spectral–spatial
+residual network (SSRN) by incorporating a residual learning
+mechanism, which can eﬀectively capture a wide range of
+spectral features and spatial contextual discriminant infor-
+mation in hyperspectral data. Roy et al. [25] proposed an
+adaptive spectral–spatial kernel improved residual network
+(A2S2K-ResNet) based on the attention mechanism, which
+innovatively integrated the attention mechanism with adaptive
+kernel learning and eﬀectively improved the ability to extract
+discriminative spectral–spatial features. CNNs have certain key
+limitations in HSI classiﬁcation: on the one hand, the local
+receptive ﬁeld restricts global context modeling; on the other
+hand, short-range convolution hinders the extraction of highly
+discriminative spatial–spectral features.
+In contrast, the graph convolutional network (GCN) gen-
+eralizes the convolution operation to non-Euclidean space,
+enabling eﬀective feature extraction from graph data with
+arbitrary topological structures [26] and thereby making it
+suitable for HSI tasks. GCN maps pixels to graph nodes
+and builds edges based on spectral similarity to achieve
+global spatial–spectral feature modeling. It can also use the
+graph structure to alleviate overﬁtting of small samples.
+Ding et al. [27] used a multiscale graph sampling and aggre-
+gation network architecture (GraphSAGE) based on GCN to
+extract multiscale features in layers and utilize a context-aware
+mechanism to describe the importance of spatially adjacent
+regions. Similarly, the attention mechanism has shown sig-
+niﬁcant advantages in improving the performance of GCNs.
+The graph attention network (GAT) [28] achieves dynamic
+adaptive adjustment of the connection weights between nodes
+by introducing the self-attention mechanism. Han et al. [29]
+designed a semi-supervised classiﬁcation method based on the
+multiscale spectral spatial GAT (MSSGAT), which constructs
+neighborhood graphs of multiple scales, where all samples are
+represented as nodes, and utilizes spectral spatial features with
+diﬀerent receptive ﬁelds.
+CNN is eﬀective in extracting local pixel features, whereas
+GCN is capable of capturing global hyperpixel features. How-
+ever, their direct fusion encounters several challenges. First,
+the data structure is incompatible, which leads to informa-
+tion loss during the conversion process between regular grid
+features and irregular graph structures. Second, there is a
+dimension mismatch problem, which increases the computa-
+tional overhead during data conversion. Finally, the training
+is dynamically unbalanced, and the diﬀerence in subnet-
+work convergence speed aﬀects the overall performance. To
+solve the above problems, Liu et al. [30] proposed a CNN-
+enhanced GCN (CEGCN), which achieved deep integration of
+CNN and GCN by designing a dual-path encoding–decoding
+architecture. Wang et al. [23] designed and proposed a new
+HGCN-MHF for HSI classiﬁcation with limited samples,
+introduced a hypergraph mechanism, and achieved good small
+sample classiﬁcation results. Based on the previous analysis,
+we proposed a hybrid CNN–GCN network (HCGN) for HSI
+classiﬁcation on Mars with limited samples.
+The network architecture of this study includes a two-
+branch feature extraction module: in the CNN branch, we ﬁrst
+use the spectral domain denoising layer combined with 1-D
+convolution to enhance the spectral features, and combine it
+with deep separable convolution to reduce the amount of data.
+Then, multigranularity spatial feature extraction is achieved
+through the cross-scale multiconvolution module. In the GCN
+branch, this study proposes a hypergraph convolutional net-
+work architecture, the core of which is to deeply explore
+the spatial–spectral collaborative representation capabilities
+in hyperspectral data. The hypergraph is composed of three
+hyperedge construction strategies. In the construction of kNN
+hyperedges, SSIM is innovatively introduced as an evaluation
+index. Compared with the traditional Euclidean distance, the
+SSIM index can better maintain the structural characteristics of
+the spectral curve and has stronger robustness to illumination
+changes and noise interference. The ContraNorm normaliza-
+tion layer is used in the normalization layer to propagate
+hyperpixel-level features. Finally, the adaptive cross-attention
+fusion module (ACAFM) is referenced, and the channel atten-
+tion cross module and the spatial attention fusion module are
+integrated to perform adaptive feature fusion on the dual-
+branch output results. In general, the main contributions of
+this article are summarized as follows.
+1) To employ a depthwise separable module in the
+multiscale CNN branch for preserving channel-wise
+information and minimizing computational cost, and
+to realize pixel-level multigranularity feature capture
+through parallel processing of three convolutional ker-
+nels with diﬀerent sizes.
+2) To introduce a GCN branch based on spatial-domain
+hierarchical map convolution, which integrates hyper-
+pixel composition and a neighborhood aggregation
+mechanism to eﬀectively extract region-level contextual
+features, and to incorporate a ContraNorm normaliza-
+tion layer for maintaining a uniform distribution in the
+representation space.
+3) To achieve adaptive processing of the two branches
+using ACAFM, and to facilitate cross-scale comple-
+mentation between the branches through the feature
+alignment module.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+4) To apply the proposed model for the classiﬁcation of
+Mars HSIs and to conduct mineral classiﬁcation in
+selected Martian regions.
+The rest of this article is organized as follows. Sec-
+tion II provides a brief overview of related work. Section III
+introduces the proposed HDCGNet in detail. Section IV
+presents the experiments and analyzes the classiﬁcation results.
+Section V draws conclusion.
+II. R ELATED WORK
+A. CNN-Based HSI Classiﬁcation Method
+In the past decade, CNNs have made signiﬁcant progress
+in the ﬁeld of HSI classiﬁcation due to their powerful
+feature representation capabilities. This deep learning archi-
+tecture automatically learns discriminative spatial–spectral
+features through hierarchical convolution operations, chang-
+ing the paradigm of traditional classiﬁcation methods.
+Ma et al. [31] proposed a lightweight hybrid CNN (Lite-
+HCNet) for HSI classiﬁcation, minimizing model parameters
+and computational workload. Zheng et al. [32] proposed
+a lightweight end-to-end attention-enhanced feature fusion
+network (AeF2N) to better understand the inherent spectral
+complexity and spatial variability in HSI. Dong et al. [33]
+proposed an HSI classiﬁcation method based on small sam-
+ple data expansion and consistency regularization, using a
+designed CNN-based model to extract discriminative features
+from a limited number of labeled pixel-pair features (PPFs)
+and a large number of unlabeled PPFs. In addition, attention
+mechanisms have been widely introduced into CNNs. For
+example, many attention mechanisms, such as the hybrid
+attention mechanism convolutional block attention module
+(CBAM) [34] and the channel attention mechanism (ECA)
+[35] have been adopted and applied. Cui et al. [36] designed
+a dual-triple attention network (DTAN) based on capturing
+cross-dimensional interaction information. The ECA module
+was introduced into the DenseNet module to achieve partial
+cross-channel interaction. Although CNN-based HSI classiﬁ-
+cation methods have demonstrated excellent performance in
+multiple tasks, their inherent architecture still makes it diﬃcult
+to eﬀectively model the long-range dependencies between
+spatial and spectral dimensions in hyperspectral data.
+B. GCN-Based HSI Classiﬁcation Method
+In contrast to CNNs, which mainly focus on local fea-
+ture extraction, GCNs and their derivative models leverage
+graph-structured data to capture long-range spatial–spectral
+dependencies that CNNs fail to represent, while eﬀectively
+modeling the topological relationships among spatial nodes.
+Yang et al. [37] proposed a classiﬁcation model, DMSGer,
+based on the GCN paradigm. They constructed a relatively
+small graph at the region level based on the hyperpixel
+segmentation algorithm and metric learning, and then applied
+the dynamic pixel-level feature update strategy to the region-
+level adjacency matrix to achieve the purpose of dynamically
+learning pixel representation. Wang et al.[38] proposed a dual-
+branch hybrid architecture DBMGNet that combines Mamba
+and GCN, designed the band selection enhanced bidirectional
+Mamba (BSEBM), and applied reparameterized Chebyshev
+graph convolution (RCGC) in GCN to simulate the similar-
+ity dependency in non-Euclidean space, while designing the
+adjacency matrix based on the intrinsic characteristics of HSI.
+Chen et al. [39] proposed an automatic graph learning con-
+volutional network (Auto-GCN), which uniﬁed graph learning
+and HSI classiﬁcation in a “network” manner to model the
+interactions of high-order tensors. GCN can perform convolu-
+tion operations on graphs of arbitrary topological structures,
+convert HSI data into graph structure representations, and
+model the correlation between diﬀerent land covers and HSI
+spatial topologies.
+C. Hypergraph Learning
+GCN is mainly divided into two processing paradigms
+according to the diﬀerences in task objectives: the ﬁrst is
+graph-level classiﬁcation, which focuses on the global repre-
+sentation of the entire graph structure; the second is node-level
+classiﬁcation, which mainly focuses on the feature learning of
+individual nodes in the graph. In the HSI classiﬁcation task, by
+mapping pixels or hyperpixels into graph nodes and building
+edge connections based on spectral–spatial similarity, it can be
+converted into a node classiﬁcation problem under the GCN
+framework [40]. Currently, most GCN methods regard each
+pixel as a node and the spectral information of each pixel as
+the node feature, thereby constructing graph data from HSI
+using a speciﬁc distance measurement method. Current GCN-
+based methods still have some defects. Existing methods rely
+heavily on the construction of the adjacency matrix, which
+represents the topological structure of graph data. However,
+the adjacency matrix is basically based on prior knowledge and
+cannot be updated through the learning process. In addition,
+using a simple graph structure for modeling, where edges
+can only represent pairwise relationships, fails to discover the
+underlying complex structure in the data [41].
+Based on the above problems, hypergraphs can be intro-
+duced into GCN. A hypergraph is a generalized graph structure
+that contains a set of vertices and hyperedges. A hyperedge
+is set between multiple vertices to represent a higher order
+relationship. The number of vertices is usually greater than 2.
+Hypergraph learning is generalized from graph learning, and
+its purpose is to analyze data by learning the information
+transfer mode between hypergraph structures. Feng et al. [42]
+ﬁrst proposed HGNN and introduced the spectral convolu-
+tion operator on the static hypergraph. Hypergraph learning
+can establish high-order correlation models between data, so
+hypergraph learning can well capture the nonlinear high-
+order data in HSIs. Currently, there are few studies on
+the use of HGNN for HSI classiﬁcation. For example,
+Duan et al. [43] proposed a structure-preserving hypergraph
+convolutional network SPHGCN, which integrates local regu-
+lar convolution and irregular hypergraph convolution to learn
+the structured semantic features of HSI. Xu et al. [44] pro-
+posed a dynamic hypergraph convolution and recursive gated
+convolution fusion network for HSI classiﬁcation to learn the
+hidden and important relationships represented in HSI data.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+Fig. 1. Framework of the proposed HDCGNet.
+D. Dual-Branch CNN–GCN
+The current HSI classiﬁcation methods based on deep
+learning still have obvious limitations in feature extrac-
+tion. Speciﬁcally, whether it is CNN or GCN architecture,
+when only a single-layer convolutional structure is used, its
+information-capturing ability will be limited by the inherent
+receptive ﬁeld. For CNN-based methods, it usually constructs
+the input patch by intercepting ﬁxed-size neighborhood pixels
+centered on the sampling point. This processing method has
+two key defects: ﬁrst, the ﬁxed-size local receptive ﬁeld
+cannot adapt to the changing requirements of multiscale fea-
+tures in HSI data; second, this rigid sampling strategy will
+ignore the optimal feature scales unique to di ﬀerent types of
+objects, resulting in poor classiﬁcation performance of some
+objects with special scale characteristics. Similarly, GCN-
+based methods also have signiﬁcant constraints: the network
+can only learn on a predeﬁned single graph structure, and
+each hyperpixel node can only aggregate the information of its
+direct neighboring nodes. This local information transmission
+mechanism severely limits the network’s ability to capture
+long-range spatial dependencies. These limitations fundamen-
+tally restrict the classiﬁcation performance of existing methods
+in complex scenes, and there is an urgent need to develop a
+new network architecture that can adapt to multiscale features
+and eﬀectively integrate global context information.
+These shortcomings prompted researchers to adopt a
+dual-branch CNN–GCN network architecture design. This
+architecture eﬀectively integrates the advantages of the two
+networks through a carefully designed feature complementa-
+tion mechanism: the CNN branch is good at extracting local
+spectral–spatial features, and its hierarchical convolutional
+structure can automatically learn multilevel feature represen-
+tations from low-level textures to high-level semantics; while
+the GCN branch focuses on modeling global topological
+relationships and captures long-range spatial dependencies
+between pixels through graph convolution operations. In
+particular, the two branches achieve deep complementarity
+through an innovative feature interaction mechanism: on the
+one hand, the local features extracted by CNN provide a
+reliable basis for GCN to construct neighborhood relations;
+on the other hand, the global context information learned by
+GCN supplements CNN with semantic associations beyond
+the local receptive ﬁeld. This synergy enables the network
+to adaptively process features of objects at diﬀerent scales,
+enhancing global consistency while maintaining local detail
+accuracy, thereby signiﬁcantly improving classiﬁcation per-
+formance in complex scenarios. Compared with a single
+network, this dual-branch architecture can more fully mine the
+multiscale spatial–spectral information contained in HSI data.
+Shi et al. [45] proposed an HCGN for HSI classiﬁcation
+that combines the advantages of CNN and GCN frameworks
+and can provide excellent classiﬁcation performance with
+limited training samples. Zhou et al. [46] designed an attention
+multihop graph and multiscale convolutional fusion network
+(AMGCFN) that is conducive to the learning of multilayer
+contextual semantic features. Yu et al. [47] proposed a band
+selection method to collect HSI classiﬁcation discriminant
+band subsets, which developed GCN and CNN to reﬁne the
+band correlations sequentially. The bands selected accord-
+ing to the obtained correlations were fed to the proposed
+self-supervised auxiliary spectral reconstruction network for
+spectral reconstruction to achieve band selection.
+III. P ROPOSED METHOD
+In this section, we introduce the proposed HDCGNet model
+in detail. The proposed HDCGNet is a hybrid neural network
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+that performs the extraction and fusion of hyperpixel and pixel
+features to characterize the spectral and spatial properties of
+HSI. The constructed network mainly includes two branches.
+One is the CNN branch, which is used to extract pixel-level
+features, reduce computational complexity, reduce informa-
+tion redundancy, optimize the network structure, and prevent
+overﬁtting. The other is the GCN branch. The advantage of
+this branch design is that it makes full use of the inherent
+spatial topological structure and spectral characteristics within
+the segmented area, constructs a multilevel feature expression
+system through a hypergraph modeling method, extracts the
+spatial adjacency matrix within the segmentation unit, inte-
+grates the spectral similarity measure to construct hyperedge
+connections, and establishes a hypergraph topological structure
+with physical signiﬁcance for extracting hyperpixel-level fea-
+tures. Finally, the features of the two branches are introduced
+in channel attention and spatial attention for adaptive fusion.
+In the following, we will describe each module in detail.
+The complete architecture of our model is shown in Fig. 1.
+The HSI data is ﬁrst denoised and dimensionally reduced by
+the DDR module, and then pixel-level features are obtained
+through the DSC module and CMC multiscale parallel in
+the CNN branch. Then, from the dimensionally reduced data
+and the input GCN branch after SLIC, after multistrategy
+hypergraph processing, feature stability is achieved through
+the ContraNorm normalization layer, and after two layers of
+HGNN, hyperpixel-level features are obtained. Ultimately, the
+two adaptively cross-fuse to obtain the ﬁnal output result.
+A. Hypergraph Convolution Composed of Multiple
+Hyperedges
+In the HSI classiﬁcation task, traditional hypergraph
+learning methods have certain limitations. The hyperedge
+generation strategy has certain defects, lacks the ability of
+other methods to generate hyperedges, relies heavily on the
+kNN algorithm to construct hyperedges, pays too much atten-
+tion to spectral features and ignores the spatial topological
+relationship of hyperpixel regions, and fails to eﬀectively
+utilize the spatial structure information provided by image
+segmentation. Second, there is a problem of feature distortion.
+In addition to the noise interference inherent in HSI data, the
+mixed pixel eﬀect in the hyperpixel segmentation area will
+cause deviations in spectral feature representation. Finally, the
+hyperedge constructed solely based on spectral similarity may
+misrepresent the actual spatial correlation between objects,
+aﬀecting the accuracy of subsequent feature propagation.
+To address the limitations of traditional hypergraph con-
+struction, we propose a multistrategy hypergraph fusion
+module, whose core architecture consists of three parallel
+hyperedge generation strategies: pairwise hyperedges (ε pair),
+k-hop hyperedges (ε hop), and kNN hyperedges (ε kNN).
+The construction of the graph structure in this study begins
+with the hyperpixel generation stage. The SLIC algorithm is
+used to over-segment the original HSI data X∈ RH×W×C to
+generate Z spatially compact and spectrally uniform hyperpixel
+regions, making each hyperpixel a node in the graph structure.
+Second, deﬁne the mapping matrix ( H × W) to represent the
+pixel-hyperpixel correlation, where HW represents the total
+number of pixels in the input image ( H ×W), Z represents the
+total number of hyperpixels generated, and the matrix element
+Qi, j is expressed as
+Qi, j =
+(
+1, if Xi∈ S j
+0, otherwise X = Flatten (X) (1)
+where Qi, j reﬂects the relationship between the ith pixel
+elementbXi and the jth hyperpixel element S j. Flatten(·) means
+ﬂattening X in space. bXi represents the ith pixel in bX, and S j
+represents the jth hyperpixel. We can then use the following
+encoder and decoder to achieve the conversion between nodes
+and hyperpixels, which are deﬁned as follows:
+V = Encoder (X, Q) = ˆQT Flatten (X) (2)
+ˆX = Decoder (X, Q) = Reshape (QV) (3)
+where ˆQT represents the transpose of ˆQ after column normal-
+ization. V represents the feature matrix of all hyperpixel nodes.
+Reshape(·) represents the spatial dimension of the restored
+ﬂat data. Encoder(·) represents the conversion of pixel graph
+into graph nodes, and Decoder(·) represents the mapping of
+hyperpixel nodes to pixels.
+Based on the undirected graph structure G = (V,ε) obtained
+after hyperpixel segmentation, the hypergraph is constructed.
+Undirected edges are introduced to connect adjacent hyperpix-
+els in the spatial distribution, and three hyperedge construction
+strategies are used to build the hypergraph. The ﬁrst strategy
+is to use paired hyperedges (ε pair) to directly transform all
+undirected edges in the base graph into binary hyperedges, that
+is, each hyperedge has only two nodes and is built based on the
+direct connection edges between nodes, retaining the topologi-
+cal relationship of the original graph structure, preserving local
+spatial neighborhood information, and constructing low-order
+neighbor edge relationships to provide a basis for high-order
+relationships. The second strategy is the k-hop hyperedge
+(εhop), which captures multiorder neighborhood relationships.
+It takes the central node vi as the starting point and connects all
+nodes in its k-hop neighborhood through k-hop path extension,
+enhancing the long-range dependency modeling capability and
+capturing multiscale spatial context information. The third
+strategy is the k-nearest neighbor hyperedge (ε kNN), which is
+constructed based on the structural similarity index (SSIM) as
+a similarity metric. It constructs a hyperedge by selecting the
+nodes with the greatest structural similarity in the constrained
+spatial neighborhood to obtain local spectral information. It
+only requires hyperpixel node information and avoids noise
+interference caused by a global search. We linearly adjust
+SSIM to [−1, 1] to ensure compatibility with spatial weights.
+SSIM is deﬁned as
+SSIM (x, y) =
+
+l (x, y)
+α
+·
+
+c (x, y)
+β
+·
+
+s (x, y)
+γ
+(4)
+where l(x,y) denotes luminance comparison, c(x,y) denotes
+contrast comparison, s(x,y) denotes structural comparison, and
+α, β, and γ denote structural parameters. We convert the
+features of each hyperpixel pair into image format, calculate
+their SSIM value, and ﬁnally return the obtained value.
+After generating multiple sets of hyperedges, this module
+introduces an adaptive weight function to achieve feature
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+fusion, and the fusion criterion considers both spectral fea-
+ture similarity as well as spatial neighborhood distance. The
+spectral similarity of the nodes vi and v j is as follows:
+φspectral
+ 
+Vi, V j
+
+= exp
+ 
+−
+ 
+Fi− F j
+2
+2σ2
+1
+!
+(5)
+where ℓ2 is the L2 paradigm, Fi and F j denote the spectral
+features of nodes Vi and V j, respectively, and σ1 is the
+adjustable parameter in the feature similarity measure function.
+Similarly, the spatial similarity is deﬁned as follows:
+φspatial
+ 
+Vi, V j
+
+= exp
+ 
+−
+ 
+Pi− P j
+2
+2σ2
+2
+!
+(6)
+where Pi and P j denote the central position of the hyperpixel
+nodes Vi and V j, respectively.σ2 is an adjustable parameter in
+the spatial distance measurement function. A hyperedge can
+connect multiple nodes. The spectral measurement weights and
+spatial measurement weights of the hyperedge εk are designed
+as follows:
+Wspectral (εk) =
+Pφspectral
+ 
+Vi, V j
+
+C (|εk|, 2) (7)
+Wspatial (εk) =
+Pφspatial
+ 
+Vi, V j
+
+C (|εk|, 2) (8)
+where Vi, V j∈εk and i , j,|εk| denotes the number of nodes
+in the hyperedge, and C(|εk|, 2) denotes the number of combi-
+nations of two diﬀerent elements selected from the hyperedge.
+Finally, the weights of the hyperedge εk are calculated as
+follows:
+Wspa-spe (εk) = min
+ 
+Wspectral (εk), Wspatial (εk)
+
+(9)
+where the minimization criterion min(·) determines the ﬁnal
+weight of the hyperedge, which implements a double con-
+straint mechanism, and the weight converges to 1 only when
+both spatial proximity and spectral similarity are satisﬁed, and
+this design has good robustness against outliers of a single
+mode. The measure of similarity between [0, 1] is ensured by
+the RBF kernel function, which helps to control the weight of
+the hyperedge.
+Compared with traditional GCN, the hypergraph CNN
+(HGNNConv) has signiﬁcant advantages in graph data pro-
+cessing, especially in dealing with higher order associations
+and unpaired relations. Traditional GCNs can only handle
+binary edges, i.e., node pairs. This binary edge is only
+applicable to second-order neighborhood aggregation, but
+HGNNConv supports hyperedges, i.e., the ability to connect
+2 and more nodes, which enables higher order interaction
+modeling. One of the hypergraph Laplace operators is
+L = I− D
+− 1
+2
+v HWD−1
+e HT D
+− 1
+2
+v (10)
+where Dv is the node degree matrix, De is the hyperedge
+degree matrix, and W is the hyperedge weight matrix, which
+supports spectral domain analysis of higher order relations.
+HGNNConv represents a spatial convolution method applied
+to hypergraphs, which is used in this study.
+Given a hypergraph G = (V,ε, W) that aggregates fea-
+tures from neighboring vertices, the central vertex feature
+Fig. 2. Illustration of how ContraNorm solves dimensionality collapse.
+HGNNConv is updated in a single phase to achieve feature
+propagation through two phases: vertex aggregation hyperedge
+and hyperedge update of new vertices, where |V| is the
+number of vertices, |ε| is the number of hyperedges, and the
+matrix H ∈ R|V|×|ε| represents the neighbor relationship in
+the hypergraph, which is deﬁned as follows:
+H (v, e) =
+(
+1, if v∈ e
+0, if v < e
+where v∈ e represents the vertex v connected by the hyperedge
+e, and the vertex neighbor set Nv(e) represents all nodes
+connected by the hyperedge e. In the ﬁrst stage, the hyperedge
+feature of the lth layer can be expressed as
+Yl = WD−1
+e HT Vl (11)
+where Vl denotes the hyperpixel vertex feature as input to
+the lth convolutional layer and W denotes the weight matrix
+of the hyperedge Wspe-spa. Similarly, in the second stage, the
+updated vertex feature Vl+1 of the lth layer as the output can
+be expressed as
+Vl+1 =σ
+ 
+D−1
+v HY lΘl
+. (12)
+In this way, the matrix format of HGNNConv can be
+combined into a single formula
+Vl+1 =σ
+ 
+D−1
+v HWD−1
+e HT VlΘl
+. (13)
+The frequency-domain-based HGNNConv is deﬁned as
+follows:
+Vl+1 =σ
+
+D
+− 1
+2
+v HWD−1
+e HT D
+− 1
+2
+v VlΘl
+
+. (14)
+This study consists of two HGNNConv layers. Each
+layer adopts the multistrategy hypergraph fusion mechanism
+described in the formula. The feature dimension is 128. When
+a hyperedge only connects two nodes (ε pair), HGNNConv can
+be regarded as a special case of GCN.
+B. ContraNorm Normalization Layer
+To address the degradation of feature dimensionality in
+deep networks and maintain the uniform distribution of
+the representation space, and handle related issues such
+as over-smoothing that occur in HGNNConv, we adopt a
+nearly zero-overhead normalization layer design that implicitly
+contrasts the learning objectives to maintain the uniform dis-
+tribution of the representation space and alleviate the key issue
+of feature dimensionality collapse. Dimensionality collapse
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+refers to the fact that node features tend to be similar in deep
+networks and lose their discriminability, which is manifested
+as a decrease in the rank of the feature matrix. Deep stacking
+of layers will lead to indistinguishable representations and
+signiﬁcant performance degradation, resulting in the occur-
+rence of over-smoothing problems. By deeply analyzing the
+common characteristics of over-smoothing and representation
+collapse, a theoretical connection between the two is estab-
+lished. In addition, ContraNorm not only enhanced the feature
+discrimination ability of hypergraph nodes in this task, but
+also stabilized the high-order feature propagation process. An
+illustration of how ContraNorm solves dimensionality collapse
+is shown in Fig. 2.
+The implementation of traditional uniformity loss relies on
+indirect optimization of model parameters, while the advantage
+of ContraNorm is that it transforms it into direct optimization
+of the representation itself. To achieve this goal, we ﬁrst
+reformulate the uniformity loss at the training objective level
+as a representation constraint at the architecture level. Each
+node hi∈ Rd in a fully connected graph structure G = (V,ε)
+corresponds to a representation vector of a sample. Inspired
+by the uniformity loss Luniform in contrastive learning, it is
+generalized to a global loss function on the graph node
+representation
+ˆLuniform =
+X
+i∈V
+log
+0
+@X
+j∈V
+e
+hT
+i h j
+τ
+1
+A. (15)
+Taking the derivative of Luniform for the node representation
+∂ ˆLuniform
+∂hi
+=
+X
+j
+exp
+
+hT
+i h j
+τ
+
+P
+kexp
+
+hT
+i hk
+τ
+ h j
+τ +
+X
+j
+exp
+
+hT
+i h j
+τ
+
+P
+kexp
+ hT
+j hk
+τ
+ h j
+τ. (16)
+Let the feature matrix be H, and H > i in the ith row. We
+can rewrite the above formula into matrix form
+∂ ˆLuniform
+∂hi
+=
+ 
+D−1A + AD−1
+H/τ, (17)
+where A = exp(HH T/τ) and D denotes the diagonal degree
+matrix of A, with Dii =P
+j Ai j.
+In order to maintain the stability of the representation, the
+choice is to use layer normalization to maintain the feature
+scale. The updated form of LayerNorm is
+LayerNorm (hi) =γ·
+hi− mean (hi)√Var(hi) +ε
+
++β (18)
+where γ and β are learnable parameters, ε = 10−5. The
+learnable parameters γ and β can rescale the representation
+hi to help alleviate the problem. Appending LayerNorm to H
+with a single-step gradient descent update yields
+Ht = LayerNorm
+
+Hb− s
+τ × softmax
+ 
+HbHT
+b
+
+Hb
+
+(19)
+where Hb and Ht represent the representation before and
+after the update, respectively, and s is the step size of the
+gradient descent. Applying layer normalization to the repre-
+sentation matrix H means applying layer normalization to all
+Fig. 3. CAFM structure diagram.
+its components h1,..., hn, which allows ContraNorm to reduce
+the uniformity loss of the representation, thereby helping to
+alleviate dimensionality collapse.
+C. Adaptive Cross-Attention Fusion Module
+In order to balance and promote the deep feature fusion
+of the two subnetworks, we use the ACAFM to process the
+two subnetworks. It uses cross-channel and spatial attention
+mechanisms to highlight salient features and enhance fea-
+ture interactions between subnetworks, and maps the fused
+features to the ﬁnal classiﬁcation output through a fully
+connected layer. The model uses the focal loss function to
+ensure balanced training of the two subnetworks. The cross-
+attention fusion module (CAFM) structure is shown in Fig. 3.
+ACAFM consists of two parts: the channel attention cross
+module and the spatial attention fusion module. The features
+extracted by the CNN branch and the GCN branch are input
+separately, where global max pooling and average pooling are
+performed, and then they are placed in two layers of neural
+networks. The two obtained features are added together, passed
+through an activation function, to obtain the channel weights.
+Subsequently, the two fused features after spatial attention
+fusion are multiplied by the input features to obtain the fused
+features. Finally, an adaptive mechanism is added, and the
+fused features of the two parts are output through the fully
+connected layer.
+CAFM consists of two parts: a channel attention cross
+module and a spatial attention fusion module. For the fea-
+tures Fc ∈ RC×H×W from the two branches, they are ﬁrst
+compressed along the spatial dimension by global maximum
+pooling (MaxPool) and global average pooling (AvgPool) to
+obtain two channel description vectors with the shape of
+C × 1 × 1, and extract pixel-level local features. Subsequently,
+these two description vectors are fed into a shared two-
+layer neural network (MLP), where the features of the two
+subnetworks are globally averaged and pooled, respectively,
+to generate channel description vectors. The channel weight
+is calculated by a shared two-layer MLP with ReLU activation,
+and the formula is
+Mc =σ
+ 
+MLP
+ 
+AvgPool(F)
+
++ MLP (MaxPool (F))
+
+(20)
+where σ(·) denotes the Sigmoid function used to normalize
+the weights to the range [0, 1].
+The channel weights Mc
+T and Mc
+H of the features Tout and
+Hout in the two subnets are obtained by the above method, and
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+the characterization after the channel attention cross module
+is as follows:
+T c = Softmax (Mcross ) Tout (21)
+Hc = Softmax
+ 
+MT
+cross
+
+Hout (22)
+Mcross = Mc
+T
+ 
+Mc
+H
+T
+(23)
+where Mcross is the cross matrix of size C × C obtained by
+multiplying Tout and Hout. This matrix quantiﬁes the correla-
+tion between the channels of the two subnetworks, with larger
+values indicating greater channel feature complementarity.
+After Softmax normalization of the crossover matrix, for the
+fused features F s∈ RC×H×W output from the channel attention
+module, we use a two-path pooling strategy to obtain the spa-
+tial attention cues. Speciﬁcally, we perform global MaxPool
+and average pooling along the channel dimension to obtain
+two spatial description maps of size 1 × H × W, which are
+then concatenated to obtain enhanced spatial characterization.
+Then, the weight coeﬃcients Ms are obtained by applying
+a shared convolutional layer with a kernel size of 3 × 3, as
+follows:
+Ms = f 3×3 
+AvgPool(F)⊕ MaxPool (F)
+
+(24)
+where f 3×3 denotes a convolutional layer with a kernel of
+3 × 3.
+Similarly, we can obtain the spatial weight coeﬃcients Ms
+T
+and Ms
+H for the features Tout and Hout. By multiplying Ms
+T
+and Ms
+H with the corresponding input features, we obtain the
+fused features. In addition, we add residual connections to the
+fusion module to retain the original features while reinforcing
+the key regions. The speciﬁc formulation is as follows:
+T s = Softmax (MT ) Tout + Tout (25)
+Hs = Softmax (MH) Hout + Hout. (26)
+We introduce adaptive adjustment in the output section. The
+fusion features T s and Hs of the two parts are adaptively
+combined through a fully connected layer, and the ﬁnal output
+Y is expressed as
+Y = Softmax (W (αT s⊕ (1−α) Hs) + B) (27)
+where W and B represent the weights and bias of the fully
+connected output layer, respectively, and the parameter α is
+constrained within the range [0, 1]. By default, α = 0.5. It
+combines the outputs of CNN and GCN, fuses the weights α
+to balance the features of CNN and GCN, and activates them
+through Softmax(·).
+Unlike the natural image task, the ACAFM in this study
+achieves adaptive alignment and complementarity of global
+topological features and local spectral–spatial features through
+dynamic weight learning.
+In order to alleviate the category imbalance problem, the
+original cross-entropy loss is replaced by focal loss, which
+eﬀectively addresses the common long-tailed distribution prob-
+lem in HSI classiﬁcation, improves the classiﬁcation accuracy
+for small categories, and alleviates the category imbalance
+issue. The principle of focal loss is as follows:
+LFocal =−
+NX
+i=1
+CX
+j=1
+α j (1− pt)γ log pt (28)
+Fig. 4. (a) Standard 2-D convolution and (b) depthwise convolution.
+where α j denotes the category weight, γ is the focusing
+parameter, and pt represents the predicted probability that the
+ith sample pi belongs to the jth category.
+D. Depthwise Separable Convolution (DSC)
+CNN has gradually become the mainstream method in HSI
+classiﬁcation tasks due to its excellent local feature extraction
+ability. However, HSIs have the characteristics of a large
+number of bands and rich information, which makes the tra-
+ditional neural network model based on standard convolution
+often face the problem of too many parameters. In order to
+build a lighter network architecture, we use DSC to realize
+local feature extraction of HSIs. The structure consists of two
+parts: depthwise convolution and pointwise convolution. We
+set up two depth-separable convolutional blocks, each with
+128 channels. Given an input feature map of size h × w × l,
+where h and w represent the spatial dimensions, and l is
+the number of spectral channels. The point convolution is
+then performed through n 1 × 1 × l convolution kernels to
+eﬀectively model the nonlinear correlation between diﬀerent
+spectral channels. Fig. 4 shows a schematic of conventional
+2-D convolution and depthwise convolution.
+Standard 2-D convolution uses n convolution kernels with
+a size of k × k (k> 1) and a channel number of l to perform
+spatial–spectral joint feature extraction on the input feature
+map. The ﬁnal calculation amount is
+Cstd = h· w· k2· n· l (29)
+where l is a loss function used to assess the diﬀerences
+between the predicted SLIC data and the ground truth. Depth-
+wise convolution is a part of DSC, which uses l convolution
+kernels of size k × k and single channel to perform spatial
+convolution on each spectral channel of the input feature
+independently and then concatenates the results to output a
+feature map of h × w × l. The computational cost is
+Cdw = h· w· k2· l. (30)
+Pointwise convolution uses n 1 × 1 × l convolution kernels
+to fuse the features of diﬀerent channels. The amount of
+calculation is
+Cpw = h· w· n· l. (31)
+Therefore, the total computational eﬀort of DSC is
+Cdsc = Cdw + Cpw = h· w· k2· l + h· w· n· l. (32)
+Compared with conventional 2-D convolution, the computa-
+tional complexity of depth-separable convolution is
+Cdsc
+Cstd
+= 1
+n + 1
+k2. (33)
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+From the above formula, it can be concluded that DSC
+reduces the amount of computation compared to conventional
+2-D convolution and can improve the running time of the
+model.
+E. Other Modules
+HSI data, due to its rich spectral information, has a dual
+nature: compared to multispectral imagery, its dense spectral
+features can signiﬁcantly improve object classiﬁcation accu-
+racy; however, this information is often mixed with noise
+interference, which not only can aﬀect classiﬁcation accuracy
+but also imposes a huge computational burden. To this end, we
+adopt a dual 1 × 1 convolutional layer architecture. Through
+BatchNorm and LeakyReLU activation, it simultaneously
+achieves data denoising and feature dimensionality reduction.
+This approach eﬀectively reduces the model’s parameter count
+while signiﬁcantly enhancing the system’s robustness and
+operational stability. This module is called denoising and
+dimensionality reduction (DDR).
+To enhance the feature extraction capability of the CNN-
+based network, we adopt a composite multiscale convolution
+(CMC) module, which includes three parallel branches with
+kernel sizes of 3 × 3, 5 × 5, and 7 × 7. This multiscale design
+is dedicated to generating rich pixel-level features. The CMC
+comprises two independent multiscale convolutional layers,
+each containing three convolutional blocks (ConvBlocks) with
+distinct receptive ﬁelds. After each multiscale convolutional
+layer, the features extracted from diﬀerent kernel sizes are
+concatenated to facilitate cross-scale feature fusion.
+Within each k × k ConvBlock, a batch normalization (BN)
+layer is ﬁrst applied to normalize the data distribution, thereby
+accelerating training and mitigating overﬁtting. To reduce the
+spectral dimensionality of the high-dimensional features, a
+1 × 1 convolutional layer is introduced after BN for feature
+transformation and parameter reduction. A LeakyReLU acti-
+vation function is then applied to introduce nonlinearity. To
+further alleviate information redundancy, ease optimization,
+and suppress overﬁtting, an average pooling layer is incor-
+porated. This pooling operation uses a 3 × 3 window with a
+stride of 1 and padding of 1 to preserve the spatial resolution
+of the feature maps. Finally, a 2-D CNN with a k × k kernel
+is employed to extract local spatial features
+Xl
+i, j =σ
+ k−1X
+h=0
+k−1X
+w=0
+Wl
+h,wXl−1
+i+h, j+w + Bl
+i, j
+!
+(34)
+where Xl
+i, j represents the output feature of the lth layer at the
+spatial position (i, j), Wl
+h,w represents the weight of the kernel,
+Xl−1
+i+h, j+w represents the input feature of the lth layer after
+the spatial position ( i + h, j + w) average pooling operation,
+Bl
+i, j is the bias, and the ﬁnal activation function σ(·) is the
+LeakyReLU(·) of ConvBlock.
+The workﬂow of HDCGNet is shown in Algorithm 1.
+Algorithm 1 HDCGNet
+Fig. 5. HC dataset. (a) False-color image. (b) Ground-truth map.
+IV. E XPERIMENTAL RESULTS AND ANALYSIS
+A. Datasets, Parameter Settings, and Evaluation Metrics
+To evaluate the eﬀectiveness of our proposed method,
+we employed three Mars hyperspectral datasets 1 to validate
+the proposed method, which include scenes from Holden
+Crater (HC), Nili Fossae (NF), and Utopia Planitia (UP). The
+data were acquired by the Compact Reconnaissance Imaging
+Spectrometer for Mars (CRISM) on the Mars Reconnaissance
+Orbiter (MRO). CRISM data have a high spatial resolution
+of 18 m/pixel and include 544 spectral bands ranging from
+0.36 to 3.93 µm, which are particularly suitable for mineral
+detection on the Martian surface.
+1) Holden Crater: HC is known for its ﬂuvial geological
+evolution, although the details of this evolution, such as water
+level changes and timing, remain unclear. The HC dataset
+consists of 418 × 595 pixels, and 440 bands are retained
+after ﬁltering out water absorption and noise spectra. The
+false-color image and ground-truth image of the HC dataset
+are shown in Fig. 5, which contains six mineral categories:
+analcime, plagioclase, prehnite, high-ca pyroxene, serpentine,
+and margarite. The category name, detailed sample number,
+and labeled color are given in Table I.
+2) Nili Fossae: NF is unique in that it contains addi-
+tional mineral phases such as carbonates and serpentine,
+which indicates the possibility of hydrothermal activity—an
+important factor for the possible occurrence of biological
+activity on Mars. The NF dataset has a size of 478 × 593
+pixels and includes 425 bands after discarding several noisy
+1Available: https://doi.org/10.57760/sciencedb.19732
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+TABLE I
+CATEGORY NAMES AND SAMPLE NUMBERS IN THE HC D ATASET
+Fig.
+6. NF dataset. (a) False-color image. (b) Ground-truth map.
+TABLE II
+CATEGORY NAMES AND SAMPLE NUMBERS IN THE NF D ATASET
+channels.
+The false-color image and ground-truth image of
+the NF dataset are shown in Fig. 6, which mainly contains
+nine mineral categories: fe-olivine, epidote, chlorite, bassan-
+ite, illite/muscovite, mg-carbonate, plagioclase, prehnite, and
+serpentine. The category name, detailed sample number, and
+labeled color are given in Table II.
+3) Utopia Planitia: UP is the landing site of the Tianwen-1
+Mars rover Zhurong, located in the southern part of UP.
+This area is one of the largest impact basins in the solar
+system and has important scientiﬁc exploration value. The
+spatial resolution of this dataset is 478 × 595, containing 432
+bands. The false-color image and ground-truth image of the
+UP dataset are shown in Fig. 7. There are nine main mineral
+classiﬁcations. The class name, detailed sample number, and
+labeled color are given in Table III.
+Furthermore, for each category of each dataset, we create
+a mask to select pixels belonging to that category, extract the
+spectral data of these pixels, calculate the average spectrum,
+and plot the average spectrum curve for each dataset. Fig. 8
+Fig. 7. UP dataset. (a) False-color image. (b) Ground-truth map.
+TABLE III
+CATEGORY NAMES AND SAMPLE NUMBERS IN THE UP D ATASET
+shows the analysis results of the average spectral reﬂectance
+curves of mineral categories in the three datasets. Through
+in-depth analysis of spectral features, it can be found that
+although these diﬀerent minerals have essential diﬀerences in
+genesis and composition, their spectral curves show obvious
+similarity characteristics. The signiﬁcant interclass similarity
+in this high-dimensional feature space will not only lead to a
+decrease in the discrimination ability of traditional classiﬁca-
+tion algorithms, but will also greatly increase the complexity
+requirements of the classiﬁcation model, thereby signiﬁcantly
+increasing the technical diﬃculty of the hyperspectral mineral
+classiﬁcation task. For these three datasets, di ﬀerent colors in
+each dataset represent diﬀerent minerals.
+We adopt the multi-index weighted fusion method to cal-
+culate the band importance by comprehensively considering
+four indicators: interclass statistical separability, variance dif-
+ference, information gain, and band correlation. By calculating
+the band importance of the three datasets, we discovered
+a signiﬁcant common pattern: the most distinctive bands
+of all datasets are concentrated in the long-wave region
+(2.3–3.9 µm). Speciﬁcally, the important band range of the
+Holden dataset is 374–439, which is consistent with its paleo-
+lacustrine environment. Lacustrine sediments typically contain
+complex combinations of altered minerals and require a wider
+spectral range for eﬀective distinction. The important band
+range of the NiliFossae dataset is 398–424, which may reﬂect
+the geological feature dominated by carbonate minerals in
+this area. The important band range of the Utopia dataset is
+395–431, which is consistent with the mixed mineral environ-
+ment of its impact basin. We placed the most distinctive bands
+of each dataset in Fig. 9.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+Fig. 8. Mean spectrum curve. (a) HC. (b) NF. (c) UP.
+TABLE IV
+KEY PARAMETERS AND THEIR CONFIGURATIONS
+During the experiment, we used the following key parame-
+ters. Table IV lists the parameters we employed. This article
+selects three evaluation indicators: overall accuracy (OA),
+average accuracy (AA), and kappa statistic (kappa) to evaluate
+the experimental results.
+B. Comparative Experiment
+To verify the eﬀectiveness of the proposed HDCGNet, we
+conducted a comparative analysis with the established CNN-
+based spectral–spatial classiﬁers. The more classic HybridSN
+Fig. 9. Most distinguishable bands in the dataset. (a) HC. (b) NF. (c) UP.
+[48] and A2S2K-ResNet [25] that use the attention mechanism
+of CNN are used for comparison, and AMGCFN [46] based on
+the attention mechanism of GCN is also selected. Second, we
+also analyzed the performance of transformer-based models
+such as SSFTT [49] and SPFormer [50], which focus on
+global information extraction. In addition, the dual-branch
+model CEGCN [30] and MCTGCL [7] are also compared.
+Finally, we also selected the currently popular MambaHSI
+[51] based on the Mamba model and SSEFN [52] based on
+the small sample model for comparative experiments. For the
+training process, ten samples were randomly selected from
+each category. To ensure the reliability of our experimental
+results, ten independent runs were performed for each method
+and dataset, and the AA and standard deviation are reported
+in Tables V–VII. The highest accuracy of each row is marked
+in bold to facilitate easier comparison and interpretation of the
+results.
+To ensure fairness, all experiments were conducted using the
+publicly available codes of the relevant authors. Tables V–VII
+record the classiﬁcation results of our HDCGNet model and
+other comparison models on the HC, NF, and UP datasets.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+TABLE V
+CLASSIFICATION PERFORMANCE OF VARIOUS METHODS ON THE HC D ATASET (%)
+TABLE VI
+CLASSIFICATION PERFORMANCE OF VARIOUS METHODS ON THE NF D ATASET (%)
+TABLE VII
+CLASSIFICATION PERFORMANCE OF VARIOUS METHODS ON THE UP D ATASET (%)
+Figs. 10–12 show the classiﬁcation graphs of diﬀerent models
+on the three datasets. From the experimental results on the
+three benchmark Mars HSI datasets, we can draw the follow-
+ing observations.
+1) Comparative Analysis: For fair comparison, all HSI
+classiﬁcation methods are run on the same training set and
+test set. The divided training set, validation set, and test set
+are shown in Tables I–III. Since the HC dataset has a higher
+spatial resolution, more retained bands, and relatively fewer
+categories, its classiﬁcation accuracy is relatively higher than
+that of other datasets. According to the results reported in
+Table IV, the accuracy of HDCGNet is signiﬁcantly higher
+than that of other methods. Among them, HDCGNet has the
+highest OA, reaching 93.81%, which is 9.77% (HybridSN),
+2.84% (A 2S2K-ResNet), 5.88% (CEGCN), 13.38% (SSFTT),
+3.49% (SPFormer), 1.97% (MambaHSI), 5.10% (SSEFN),
+3.01% (AMGCFN), and 1.73% (MCTGCL) higher than other
+methods. In addition, AA and Kappa of HDCGNet are also
+signiﬁcantly improved.
+Although the NiliFossae dataset has a high spatial resolu-
+tion, the irregular distribution of objects and the overlapping
+categories make classiﬁcation di ﬃcult, and the classiﬁca-
+tion accuracy is at a lower level compared with other
+datasets. According to the results reported in Table V, the
+accuracy of HDCGNet is signiﬁcantly higher than that of
+other methods. Among them, HDCGNet has the highest
+OA, reaching 89.85%, which is 8.39% (HybridSN), 3.56%
+(A2S2K-ResNet), 3.31% (CEGCN), 23.32% (SSFTT), 0.71%
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+Fig. 10. Classiﬁcation diagrams obtained by various algorithms on the HC
+dataset. (a) HC dataset. (b) Ground-truth. (c) HDCGNet. (d) MCTGCL.
+(e) AMGCFN. (f) SSEFN. (g) MambaHSI. (h) SPFormer. (i) SSFTT.
+(j) CEGCN. (k) A 2S2K-ResNet. (l) HybridSN.
+Fig. 11. Classiﬁcation diagrams obtained by various algorithms on the NF
+dataset. (a) NF dataset. (b) Ground-truth. (c) HDCGNet. (d) MCTGCL.
+(e) AMGCFN. (f) SSEFN. (g) MambaHSI. (h) SPFormer. (i) SSFTT.
+(j) CEGCN. (k) A 2S2K-ResNet. (l) HybridSN.
+(SPFormer), 4.25% (MambaHSI), 3.12% (SSEFN), 3.06%
+(AMGCFN), and 8.65% (MCTGCL) higher than other meth-
+ods. In addition, AA and kappa of HDCGNet are also
+signiﬁcantly improved.
+The UP dataset has a high spatial resolution, and the
+smooth and regular distribution of objects makes classiﬁcation
+simple and has a high classiﬁcation accuracy. Accord-
+ing to the results reported in Table VI, the accuracy of
+HDCGNet is signiﬁcantly higher than that of other meth-
+ods. Among them, HDCGNet has the highest OA, reaching
+90.49%, which is 3.45% (HybridSN), 1.14% (A2S2K-ResNet),
+3.62% (CEGCN), 3.19% (SSFTT), 0.10% (SPFormer), 0.26%
+(MambaHSI),2.44% (SSEFN), 3.02% (AMGCFN), and 3.95%
+(MCTGCL) higher than other methods. In addition, the AA
+and kappa of HDCGNet are also signiﬁcantly improved.
+2) Comparative Analysis: The visual comparison of the
+classiﬁcation results is shown in Figs. 10–12. The existing
+classiﬁcation models generally have obvious misclassiﬁcation
+phenomena. There are a large number of discrete misclassiﬁed
+pixels within each category area. Second, the boundaries of
+the transition area between categories are unclear. In addi-
+tion, some ground object categories are seriously confused.
+In contrast, the HDCGNet method proposed in this article
+shows signiﬁcant advantages on all test datasets: the number
+of misclassiﬁed pixels in the classiﬁcation result map is
+the least; the consistency within each category area is the
+Fig. 12. Classiﬁcation diagrams obtained by various algorithms on the UP
+dataset. (a) UP dataset. (b) Ground-truth. (c) HDCGNet. (d) MCTGCL.
+(e) AMGCFN. (f) SSEFN. (g) MambaHSI. (h) SPFormer. (i) SSFTT.
+(j) CEGCN. (k) A 2S2K-ResNet. (l) HybridSN.
+highest; the boundaries between classes are the clearest. These
+visual qualitative analysis results are highly consistent with
+the quantitative evaluation indicators in Tables V–VII. The
+classiﬁcation map is obviously less noisy and smoother, which
+proves the superiority of our method.
+3) Comparative Model Analysis: The CNN-based HSI clas-
+siﬁcation models (i.e., HybridSN and A 2S2K-ResNet) show
+excellent performance on the three datasets because they fully
+utilize the local spatial–spectral features of HSI. The GCN-
+based HSI classiﬁcation model (i.e., AMGCFN) achieves
+excellent performance on diﬀerent HSI data, captures nonlocal
+spatial dependencies, and eﬀectively handles irregular ground
+object distribution. The transformer-based HSI classiﬁcation
+models (i.e., SSFTT and SPFormer) focus on global infor-
+mation extraction. The dual-branch HSI classiﬁcation models
+(i.e., CEGCN and MCTGCL) are mainly due to their eﬀective
+exploration of the local and global spatial–spectral features
+of HSI by combining CNN and GCN or transformer dual-
+branch parallel processing. The HSI classiﬁcation model based
+on Mamba (i.e., MambaHSI) mainly integrates spatial and
+spectral information by leveraging its excellent long-range
+modeling capabilities. The HSI classiﬁcation model for small
+samples (i.e., SSEFN) enhances feature discrimination ability
+and learns with fewer samples. The HDCGNet method pro-
+posed in this article aggregates the spatial and spectral features
+of HSI to further improve the classiﬁcation performance.
+C. Experimental Settings
+To maximize the eﬀectiveness of the proposed network, we
+implemented a detailed experimental conﬁguration. We set the
+total number of training sets to 500, the number of hyperpixel
+nodes to 500, and the learning rate to 0.0005, following
+standard practice. All experimental results are calculated on
+the basis of the average of the results after ten independent
+runs of randomly selected initial training samples.
+1) Sample Size: In order to evaluate the eﬀectiveness of
+the proposed method under diﬀerent labeled samples, we
+randomly selected 5, 10, 15, 20, and 25 annotated samples and
+conducted ten experiments. Under the same circumstances, we
+found that ten annotated samples had the best OA value, so
+this article uniformly chose to use ten annotated samples for
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+Fig. 13. OA (%) of diﬀerent methods on three datasets with diﬀerent numbers
+of labeled samples. (a) HC. (b) NF. (c) UP.
+Fig. 14. OA rate (%) of diﬀerent methods on three datasets with a larger
+number of labeled samples.
+experiments. The average OA in the three datasets is shown
+in Fig. 13. In addition, we have also added experiments with
+larger sample sizes with annotations, setting 1%, 5%, 10%, and
+20% of the total sample size, respectively. This also proves
+that the advantages of HDCGNet do not merely stem from
+an extremely low data volume environment, but rather from a
+scalable and robust model. The average OA on the three sets
+of datasets is shown in Fig. 14.
+2) λ: In order to determine the optimal segmentation scale
+and evaluate the impact of the partition size of SLIC, we keep
+other parameters unchanged and make λ systematically vary
+in the range of [100, 300, 500, 700, 1000]. Fig. 15 shows
+the hyperpixel images of the three datasets when λ = 500.
+Speciﬁcally, a larger scale will produce a smaller graph,
+resulting in fewer hyperpixel nodes and larger hyperpixels,
+which can suppress noise. On the contrary, a smaller scale will
+produce a larger graph composed of small hyperpixels with
+noise. Fig. 16 shows the relationship between the segmentation
+scale and OA. When the segmentation scale λ of the three
+datasets is set to 500, 300, and 700, respectively, the OA value
+is the highest. In order to maintain relative fairness in the
+experimental results of this article, λ is uniformly set to 500.
+3) K: In order to determine the optimal number of neighbor
+nodes, K varies in the range of [3, 6, 9, 12, 15]. As shown
+in Fig. 17, the relationship between OA and the number of
+neighbor nodes. When the K value is equal to 12, the OA of
+the HC dataset reaches the highest; for the NF dataset, in the
+range of [6, 9, 12, 15], OA has an upward trend. For the UP
+dataset, when the number of neighbor nodes is in the range of
+Fig. 15. Hyperpixel image with λ = 500. (a) HC. (b) NF. (c) UP.
+Fig. 16. OA under diﬀerent λ values on each dataset.
+[3, 6, 9, 12, 15], OA is relatively insensitive, and the node is
+selected in the 2-hop neighbor, and the coverage space range
+is not large, so its decline will not be much lower than the
+optimal OA. After comprehensive consideration, the K values
+of the three datasets are set to 12, 15, and 9, respectively.
+4) Epoch: We use ﬁve diﬀerent training epochs ranging
+from 100 to 500 to evaluate the performance of our pro-
+posed HDCGNet method. Fig. 18 shows the classiﬁcation
+performance of our HDCGNet method with diﬀerent training
+times on the three datasets. We can see that with the increase
+in the number of iterations, the OA of HDCGNet on the
+three datasets shows an upward trend. Moreover, HDCGNet
+converges with the increase in training epochs, and ﬁnally
+reaches 93.81%, 89.85%, and 90.52% OA values at 500 epochs
+on the three datasets, respectively. Since the training time tends
+to increase with the increase in epochs, we set the training
+epoch of HDCGNet to 500 to balance the training time and
+performance. In order to avoid unfair comparison, considering
+the undertraining of the compared models, we set the training
+epoch of the compared methods to 500.
+5) Learning Rate: In this section, we study the eﬀects of
+diﬀerent learning rate settings on the proposed HDCGNet.
+The learning rate determines the model’s convergence and
+convergence eﬃciency. Several commonly used learning rate
+settings are empirically tested and qualitatively compared on
+three datasets. The experimental results of diﬀerent learning
+rate settings on the three datasets are shown in Fig. 19. We
+can see that when the learning rate is 0.05, the OA of the three
+datasets is extremely low, and as the learning rate decreases,
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+TABLE VIII
+ABLATION CLASSIFICATION PERFORMANCE OF THE PROPOSED METHOD ON HC, NF, AND UP D ATASETS (%)
+Fig.
+17. OA under diﬀerent K values on each dataset.
+the OA tends to increase continuously. Therefore, we set the
+learning rate to 0.0005 to report all experimental results.
+D. Ablation Experiment
+As described in Section III, the proposed method mainly
+consists of the DSC module, the ContraNorm normalization
+layer (hereinafter referred to as CN), and CAFM feature
+fusion. To evaluate the eﬀectiveness of each component, we
+conducted ablation studies on these speciﬁc modules, and the
+hardware used for training was the NVIDIA GeForce RTX
+4090 GPU.
+First, we deﬁne a baseline network that excludes DSC, CN,
+and ACAFM. The baseline consists of a CNN-based branch for
+local feature extraction and a GCN-based branch for parallel
+processing of global features. Then, we gradually add DSC
+and CN by replacing the existing modules in the baseline
+with these components. Finally, we fuse ACAFM to form the
+ﬁnal complete architecture. The four experimental cases are
+as follows.
+Case 1: Network without DSC, CN, and ACAFM.
+Case 2: Network without CN and ACAFM.
+Case 3: Network without ACAFM.
+Case 4: Network including DSC, CN, and ACAFM.
+For each class, we randomly select ten labeled samples and
+conduct ten experiments independently. TableVIII summarizes
+the average classiﬁcation performance of the three datasets
+as well as the standard deviation. Undoubtedly, the best
+results of OA, AA, and Kappa are highlighted in bold. It
+is obvious from Table VIII that our proposed DSC, CN,
+and ACAFM can signiﬁcantly improve OA, AA, and Kappa.
+Speciﬁcally, DSC eﬀectively captures the local features of
+HSI with its lower complexity. ContraNorm helps generate
+more evenly distributed features by directly applying losses to
+the graph node representation. Meanwhile, ACAFM extracts
+spectral–spatial features from the pixel level and hyperpixel
+level, respectively, through relatively parallel multiscale con-
+volutional subnetworks and graph node subnetworks, and
+performs feature fusion, thereby comprehensively capturing
+the multilevel contextual semantic features of HSIs.
+In addition, in the HC dataset, we conducted ablation
+experiments for three hyperedge composition strategies. Each
+of these strategies was deleted separately to showcase the
+contribution of each strategy. The ablation results are shown
+in Table IX.
+E. Comparative Analysis of kNN Hyperedge Composed of
+SSIM
+To demonstrate that SSIM can comprehensively reﬂect the
+statistical dependence and structural consistency of spectral
+shapes, we use SSIM similarity and compare it with Euclidean
+distance, cosine similarity, and Manhattan distance to construct
+the hyperedge of kNN.
+SSIM maintains the structural correlation of features within
+the neighborhood, which helps to maintain spatial continuity
+and local consistency in the construction of hypergraphs. The
+Euclidean distance only measures the amplitude diﬀerence
+between two eigenvectors and is highly sensitive to scale and
+illumination changes. In Mars hyperspectral data, it is easily
+aﬀected by noise and reﬂection intensity. Cosine similarity
+measures the directional consistency but ignores the local
+intensity and contrast information. It measures the sum of the
+absolute diﬀerences of spectral features in each dimension,
+emphasizing the consistency of the overall contour of the
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+TABLE IX
+ABLATION STUDY OF GRAPH CONSTRUCTION STRATEGIES ON HC D ATASET (%)
+TABLE X
+COMPARATIVE EXPERIMENTS USING K NN TO
+CONSTRUCT HYPEREDGES (%)
+spectral curve, but is not sensitive to the nonlinear struc-
+ture and local contrast changes between dimensions. SSIM
+decomposes similarity into three parts: luminance, contrast,
+and structure, which is equivalent to the perceived similarity
+measured in the structural manifold space, and pays more
+attention to the relative changes of spectral shapes rather than
+absolute diﬀerences. Therefore, SSIM can comprehensively
+reﬂect the statistical dependence and structural consistency of
+spectral shapes.
+Ultimately, through experiments, we found that the OA of
+using SSIM has improved, verifying its stronger discriminative
+power and robustness. The results are shown in Table X.
+F . Complexity Analysis
+In order to systematically evaluate the operating eﬃciency
+and computational complexity of the proposed method, we
+compared and analyzed multiple algorithms from two dimen-
+sions: training time and network parameter quantity (Params).
+The hardware used for training was a NVIDIA GeForce
+RTX 4090 GPU. Each experiment was repeated ten times to
+eliminate random errors, and the average training time was
+ﬁnally reported. As shown in Table VIII, compared with other
+network architectures, the HDCGNet method proposed by us
+maintains model performance while keeping its training time
+and computational resource consumption within a reasonable
+range, showing good computational eﬃciency and achieving
+a good balance between model complexity and computational
+eﬃciency. The training time and training parameter quantities
+in the experiment can be seen in Table XI.
+Although HDCGNet adopts multistrategy hypergraphs (pair-
+wise, k-hop, and kNN), the additional computational overhead
+has been strictly controlled. Since it is ﬁrst segmented into
+hyperpixels, the number of subsequent nodes is signiﬁcantly
+reduced. Using the SLIC algorithm, the complexity is
+O
+ 
+N· log N
+
+where N is the number of pixels.
+During the process of generating hyperedges, the computa-
+tional overhead is as follows.
+1) K-Hop Hyperedge: Generated by BFS/DFS based on
+adjacency matrix, with a complexity of O(N· k).
+2) kNN Hyperedge: Based on the precalculated SSIM dis-
+tance matrix (O( N2· d)), perform the top-K search
+(O(N· log k)).
+3) Paired Hyperedges: Directly transformed from the basic
+adjacency matrix, with a complexity of O(E).
+The total complexity is approximately O(N2· d + N·
+log k + N· k), where N is the number of hyperpixels (much
+less than the number of pixels H × W). Since the image
+is segmented into hyperpixels rather than individual pixels,
+the total cost is still very low compared with CNN feature
+extraction, and the overall overhead is controllable and can be
+ignored.
+The complexity of hypergraph convolution during the train-
+ing process can be regarded as the HGNNConv layer. The
+computational complexity of each layer is approximately
+O (E + N· F)
+similar to the standard GCN convolution, where E is the
+number of hyperedges and F is the feature dimension. The
+overall complexity is comparable to that of GCN, without
+introducing excessive additional overhead.
+G. Visualization Analysis of the Training Process
+As shown in Fig. 20, in order to evaluate the convergence
+and stability of the model, we plotted the loss function curve
+during the training process. The loss function curve indicates
+that as the number of training rounds increases, both the
+training loss and the validation loss show a downward trend
+and eventually stabilize, suggesting that the model has the
+best generalization ability at this point. The gap between the
+two curves is small, indicating that the model does not show
+signiﬁcant overﬁtting. The shaded area represents the standard
+deviation of multiple random seeds, and the narrower the
+shade, the better the stability of the model.
+Second, to evaluate the quality of the feature representation
+learned by the model, we used the t-SNE dimensionality
+reduction technique to visualize the high-dimensional feature
+space onto a 2-D plane. To enhance the visual clarity and
+reduce the computational load, we display all the valid pixels.
+As shown in the visualized graph in Fig. 21, each point
+represents a test set pixel, and its color corresponds to the
+real class label. The spatial distance between points reﬂects
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+TABLE XI
+RUNNING TIME AND PARAMETER SIZE OF DIFFERENT METHODS ON HC, NF, AND UP D ATASETS
+Fig.
+18. OA under diﬀerent epochs on each dataset.
+Fig.
+19. OA under diﬀerent learning rates on each dataset.
+Fig.
+20. Average loss curves on each dataset. (a) HC. (b) NF. (c) UP.
+the similarity of the category probability distribution output
+by the model.
+Fig. 21. t-SNE visualization on each dataset. (a) HC. (b) NF. (c) UP.
+H. Discussion on the Computational Cost of Hypergraphs
+We conducted a detailed analysis of the confusion matrix
+of the model to determine the mineral categories that are
+most likely to be misclassiﬁed, and discussed the reasons
+for misclassiﬁcation from the spectral feature level and the
+topological structure level, respectively. Among them, the
+main misclassiﬁed categories are as follows.
+In the HC dataset, prehnite and serpentine are more likely
+to be misclassiﬁed. In the NF dataset, mg-carbonate and
+serpentine are more likely to be misclassiﬁed. In the UP
+dataset, bassanite, low-ca pyroxene, and plagioclase are more
+likely to be misclassiﬁed.
+The main reasons for our analysis of misclassiﬁcation are
+as follows.
+1) Reasons at the Spectral Level: The spectra of the mis-
+classiﬁed minerals are highly similar. The absorption bands of
+these misclassiﬁed minerals almost completely overlap with
+those of other minerals in certain bands. As can be seen from
+Fig. 8, their reﬂectance curves highly overlap in these bands,
+resulting in a relatively low spectral resolution. Therefore,
+the main reason for misclassiﬁcation is the excessively high
+spectral similarity, which makes it diﬃcult to distinguish
+adjacent categories during the feature extraction stage.
+2) Topological Reasons: The secondary cause comes from
+the boundary uncertainty of SLIC segmentation, which leads
+to blurring of the hyperpixel boundaries, especially in the
+transitional regions where two minerals coexist. The mixed
+pixels within these regions may be classiﬁed as the same
+hyperpixel node, thereby introducing local structural noise into
+the hypergraph structure. However, the multistrategy hyper-
+edge construction proposed in this article can connect adjacent
+regions through spectral and spatial joint similarity, which can
+alleviate this problem to a certain extent.
+V. C ONCLUSION
+In this article, we propose a parallel feature fusion network
+that integrates CNN and GCN for HSI classiﬁcation, which
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+5512519 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 64, 2026
+includes two branches (i.e., CNN branch and GCN branch)
+and a feature fusion module (i.e., ACAFM). First, the CNN
+branch is employed to extract multiscale features, aiming
+to capture pixel-level features with diﬀerentiated receptive
+ﬁelds through a multiscale feature extraction strategy. The
+DDR transform is incorporated to achieve eﬃcient DDR of
+spectral features. Meanwhile, the CMC module is utilized
+to extract feature representations in the spatial–spectral joint
+domain by means of multikernel convolution. Second, a spe-
+cial GCN branch architecture is designed, which constructs a
+hypergraph based on three diﬀerent hyperedge construction
+strategies and introduces it into GCN. By integrating the
+inherent spatial topological structure and spectral features
+of the segmented region, a joint hypergraph representation
+model is constructed, and hyperpixel-level deep features with
+semantic consistency are extracted. Finally, ACAFM uses
+cross-attention to realize feature interaction between the two
+branches. The HDCGNet proposed in this article can eﬀec-
+tively aggregate spatial–spectral multilevel contextual features
+at both the pixel and hyperpixel levels, thereby signiﬁcantly
+enhancing the classiﬁcation performance of HSIs. Comparative
+experiments on three Mars benchmark HSI datasets show that
+HDCGNet outperforms existing advanced methods in both
+feature representation learning and cross-level feature fusion.
+Although the current method has achieved good classiﬁca-
+tion results in the experimental dataset, we are still committed
+to further optimizing the performance and eﬃciency of the
+model. Future research work will focus on the following
+directions.
+1) Hypergraph Sparsiﬁcation and Adaptive Pruning: Future
+research will investigate eﬃcient hypergraph sparsiﬁcation
+and adaptive edge selection strategies to reduce redundant
+connections while preserving topological consistency. This
+direction can signiﬁcantly reduce computational complexity
+and memory cost, enabling real-time processing of large-scale
+Mars HSI data.
+2) Knowledge Distillation for Lightweight Deployment: We
+plan to explore knowledge distillation from the dual-branch
+HDCGNet to a single-branch lightweight student model. The
+goal is to retain the discriminative spectral–spatial represen-
+tation power of the teacher model while improving inference
+eﬃciency on resource-constrained Mars exploration hardware.
+3) Multigranularity Alignment and Enhancement: Before
+feature interaction, design a coarse-to-ﬁne feature alignment
+module. First, the pixel features are initially aggregated and
+aligned within the hyperpixel region. Then, through the
+iterative propagation of the graph neural network, the cor-
+rected semantic information of the hyperpixels is fed back to
+the pixel-level features, forming a bidirectional and iterative
+reﬁnement process.
+4) Adaptive Homophily-Aware Graph Learning [53]: We
+intend to explore adaptive homophily-aware graph learning.
+This could be realized through a learnable homophily coeﬃ-
+cient that modulates edge weights or even dynamically prunes
+and adds hyperedges, which would enable the GCN branch
+to adaptively emphasize semantically meaningful connections
+while suppressing noisy or spurious links, particularly in
+regions with mixed pixels or transitional mineral zones.
+5) Unsupervised Image Clustering: We plan to explore
+unsupervised graph learning clustering methods for HSIs to
+further reduce the model’s reliance on scarce labeled sam-
+ples. By jointly learning node representations and clustering
+assignments in a graph structure, the model can uncover the
+inherent similarities between spectral–spatial features in an
+unsupervised manner. An adaptive graph construction strategy
+can be introduced to dynamically adjust the node connection
+relationships and clustering granularity, thereby discovering
+region structures with semantic consistency.
+REFERENCES
+[1] Y . Jia et al., “EDR-TransUnet: Integrating enhanced dual relation-
+attention with transformer U-Net for multiscale rock segmentation on
+Mars,” IEEE Trans. Geosci. Remote Sens., vol. 62, 2024, Art. no.
+4601416.
+[2] Y . Xiong, X. Xiao, M. Yao, H. Liu, H. Yang, and Y . Fu, “MarsFormer:
+Martian rock semantic segmentation with transformer,” IEEE Trans.
+Geosci. Remote Sens., vol. 61, 2023, Art. no. 4600612.
+[3] E. Xie, N. Chen, J. Peng, W. Sun, Q. Du, and X. You, “Semantic and
+spatial–spectral feature fusion transformer network for the classiﬁcation
+of hyperspectral image,” CAAI Trans. Intell. Technol., vol. 8, no. 4,
+pp. 1308–1322, 2023.
+[4] J. Peng et al., “Low-rank and sparse representation for hyperspectral
+image processing: A review,” IEEE Geosci. Remote Sens. Mag., vol. 10,
+no. 1, pp. 10–43, Mar. 2022.
+[5] E. Allender and T. F. Stepinski, “Automatic, exploratory mineralogical
+mapping of CRISM imagery using summary product signatures,” Icarus,
+vol. 281, pp. 151–161, Jan. 2017.
+[6] J. A. Caggiano, A. M. Sessa, J. J. Wray, and C. S. Paty, “Application
+of machine learning to identify surface minerals in CRISM imagery,”
+in Proc. Lunar Planet. Sci. Conf. (LPSC), 2019, p. 2564.
+[7] B. Xi et al., “MCTGCL: Mixed CNN–transformer for Mars hyperspec-
+tral image classiﬁcation with graph contrastive learning,” IEEE Trans.
+Geosci. Remote Sens., vol. 63, 2025, Art. no. 5503214.
+[8] M. Jiang et al., “GraphGST: Graph generative structure-aware trans-
+former for hyperspectral image classiﬁcation,” IEEE Trans. Geosci.
+Remote Sens., vol. 62, 2024, Art. no. 5504016.
+[9] Y . Su, L. Gao, A. Plaza, X. Sun, M. Jiang, and G. Yang, “SRViT:
+Self-supervised relation-aware vision transformer for hyperspectral
+unmixing,” IEEE Trans. Neural Netw. Learn. Syst., vol. 36, no. 10,
+pp. 17585–17598, Oct. 2025.
+[10] X. Yue, A. Liu, N. Chen, S. Xia, J. Yue, and L. Fang,
+“HyperMLL: Toward robust hyperspectral image classiﬁcation with
+multisource label learning,” IEEE Trans. Geosci. Remote Sens., vol. 62,
+2024, Art. no. 5526515.
+[11] C. Zhao et al., “Hyperspectral image classiﬁcation with multi-
+attention transformer and adaptive superpixel segmentation-based active
+learning,” IEEE Trans. Image Process., vol. 32, pp. 3606–3621, 2023.
+[12] X. Ma et al., “Urban feature extraction within a complex urban area
+with an improved 3D-CNN using airborne hyperspectral data,” Remote
+Sens., vol. 15, no. 4, p. 992, Feb. 2023.
+[13] L. Zhang and L. Zhang, “Artiﬁcial intelligence for remote sensing
+data analysis: A review of challenges and opportunities,” IEEE Geosci.
+Remote Sens. Mag., vol. 10, no. 2, pp. 270–294, Jun. 2022.
+[14] X. Kang, B. Deng, P. Duan, X. Wei, and S. Li, “Self-supervised
+spectral–spatial transformer network for hyperspectral oil spill
+mapping,” IEEE Trans. Geosci. Remote Sens., vol. 61, 2023, Art. no.
+5507410.
+[15] S. Li, W. Song, L. Fang, Y . Chen, P. Ghamisi, and J. A. Benediktsson,
+“Deep learning for hyperspectral image classiﬁcation: An overview,”
+IEEE Trans. Geosci. Remote Sens., vol. 57, no. 9, pp. 6690–6709, Sep.
+2019.
+[16] R. Achanta, A. Shaji, K. Smith, A. Lucchi, P. Fua, and S. S ¨usstrunk,
+“SLIC superpixels compared to state-of-the-art superpixel methods,”
+IEEE Trans. Pattern Anal. Mach. Intell., vol. 34, no. 11, pp. 2274–2282,
+Nov. 2012.
+[17] S. Wan, C. Gong, P. Zhong, B. Du, L. Zhang, and J. Yang,
+“Multiscale dynamic graph convolutional network for hyperspectral
+image classiﬁcation,” IEEE Trans. Geosci. Remote Sens., vol. 58, no. 5,
+pp. 3162–3177, May 2020.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
+TIAN et al.: HDCGNet: A HYPERGRAPH DUAL-BRANCH CNN–GCN NETWORK 5512519
+[18] F. Luo, T. Zhou, J. Liu, T. Guo, X. Gong, and J. Ren, “Multiscale
+diﬀ-changed feature fusion network for hyperspectral image change
+detection,” IEEE Trans. Geosci. Remote Sens., vol. 61, 2023, Art. no.
+5502713.
+[19] Z. Gong, W. Hu, X. Du, P. Zhong, and P. Hu, “Deep manifold embedding
+for hyperspectral image classiﬁcation,” IEEE Trans. Cybern., vol. 52,
+no. 10, pp. 10430–10443, Oct. 2022.
+[20] W. Hu, Y . Huang, L. Wei, F. Zhang, and H. Li, “Deep convolutional
+neural networks for hyperspectral image classiﬁcation,” J. Sensors,
+vol. 2015, no. 1, 2015, Art. no. 258619.
+[21] W. Hu, Y . Huang, L. Wei, F. Zhang, and H. Li, “Deep convolutional
+neural networks for hyperspectral image classiﬁcation,” J. Sensors,
+vol. 2015, pp. 1–12, Aug. 2015.
+[22] H. Lee and H. Kwon, “Going deeper with contextual CNN for hyper-
+spectral image classiﬁcation,” IEEE Trans. Image Process., vol. 26,
+no. 10, pp. 4843–4855, Oct. 2017.
+[23] Y . Wang, Z. Xue, M. Jia, Z. Liu, and H. Su, “Hypergraph convolutional
+network with multiple hyperedges fusion for hyperspectral image clas-
+siﬁcation under limited samples,” IEEE Trans. Geosci. Remote Sens.,
+vol. 62, 2024, Art. no. 5526318.
+[24] Z. Zhong, J. Li, Z. Luo, and M. Chapman, “Spectral–spatial residual
+network for hyperspectral image classiﬁcation: A 3-D deep learn-
+ing framework,” IEEE Trans. Geosci. Remote Sens., vol. 56, no. 2,
+pp. 847–858, Feb. 2018.
+[25] S. K. Roy, S. Manna, T. Song, and L. Bruzzone, “Attention-
+based adaptive spectral–spatial kernel ResNet for hyperspectral image
+classiﬁcation,” IEEE Trans. Geosci. Remote Sens., vol. 59, no. 9,
+pp. 7831–7843, Sep. 2021.
+[26] J. Xu et al., “FusGAT: Graph attention-based fusion network for unsu-
+pervised hyperspectral image super-resolution,” IEEE Geosci. Remote
+Sens. Lett., vol. 22, pp. 1–5, 2025.
+[27] Y . Ding, X. Zhao, Z. Zhang, W. Cai, and N. Yang, “Multiscale graph
+sample and aggregate network with context-aware learning for hyper-
+spectral image classiﬁcation,” IEEE J. Sel. Topics Appl. Earth Observ.
+Remote Sens., vol. 14, pp. 4561–4572, 2021.
+[28] P. Velickovic, G. Cucurull, and A. Casanova, “Graph attention
+networks,” in Proc. ICLR, 2018, p. 12.
+[29] X. Han, Z. Jiang, Y . Liu, J. Zhao, Q. Sun, and J. Liu, “Semi-supervised
+hyperspectral image classiﬁcation based on multiscale spectral–spatial
+graph attention network,” IEEE Geosci. Remote Sens. Lett., vol. 21,
+pp. 1–5, 2024.
+[30] Q. Liu, L. Xiao, J. Yang, and Z. Wei, “CNN-enhanced graph con-
+volutional network with pixel- and superpixel-level feature fusion for
+hyperspectral image classiﬁcation,” IEEE Trans. Geosci. Remote Sens. ,
+vol. 59, no. 10, pp. 8657–8671, Oct. 2021.
+[31] X. Ma et al., “A lightweight hybrid convolutional neural network for
+hyperspectral image classiﬁcation,” IEEE Trans. Geosci. Remote Sens. ,
+vol. 61, 2023, Art. no. 5513714.
+[32] Y . Zheng, S. Liu, and L. Bruzzone, “An attention-enhanced feature
+fusion network (AeF 2N) for hyperspectral image classiﬁcation,” IEEE
+Geosci. Remote Sens. Lett., vol. 20, pp. 1–5, 2023.
+[33] S. Dong et al., “Hyperspectral image classiﬁcation method based on
+data expansion and consistency regularization with small samples,”IEEE
+Geosci. Remote Sens. Lett., vol. 22, pp. 1–5, 2025.
+[34] S. Woo, J. Park, J.-Y . Lee, and I. S. Kweon, “CBAM: Convolutional
+block attention module,” in Proc. Eur. Conf. Comput. Vis. (ECCV), 2018,
+pp. 3–19.
+[35] Q. Wang, B. Wu, P. Zhu, P. Li, W. Zuo, and Q. Hu, “ECA-Net: Eﬃcient
+channel attention for deep convolutional neural networks,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , Jun. 2020,
+pp. 11534–11542.
+[36] Y . Cui, Z. Yu, J. Han, S. Gao, and L. Wang, “Dual-triple attention
+network for hyperspectral image classiﬁcation using limited training
+samples,” IEEE Geosci. Remote Sens. Lett., vol. 19, pp. 1–5, 2022.
+[37] Y . Yang et al., “Semi-supervised multiscale dynamic graph con-
+volution network for hyperspectral image classiﬁcation,” IEEE
+Trans. Neural Netw. Learn. Syst., vol. 35, no. 5, pp. 6806–6820,
+May 2024.
+[38] H. Wang, P. Zhuang, X. Zhang, and J. Li, “DBMGNet: A dual-
+branch mamba-GCN network for hyperspectral image classiﬁcation,”
+IEEE Trans. Geosci. Remote Sens., vol. 63, 2025, Art. no.
+4410517.
+[39] J. Chen, L. Jiao, X. Liu, L. Li, F. Liu, and S. Yang, “Automatic
+graph learning convolutional networks for hyperspectral image
+classiﬁcation,” IEEE Trans. Geosci. Remote Sens., vol. 60, 2022,
+Art. no. 5520716.
+[40] A. Qin, Z. Shang, J. Tian, Y . Wang, T. Zhang, and Y . Y . Tang,
+“Spectral–spatial graph convolutional networks for semisupervised
+hyperspectral image classiﬁcation,” IEEE Geosci. Remote Sens. Lett.,
+vol. 16, no. 2, pp. 241–245, Feb. 2019.
+[41] Z. Ma, Z. Jiang, and H. Zhang, “Hyperspectral image classiﬁcation using
+feature fusion hypergraph convolution neural network,” IEEE Trans.
+Geosci. Remote Sens., vol. 60, 2022, Art. no. 5517314.
+[42] Y . Feng, H. You, Z. Zhang, R. Ji, and Y . Gao, “Hypergraph neu-
+ral networks,” in Proc. AAAI Conf. Artif. Intell., vol. 33, 2019,
+pp. 3558–3565.
+[43] Y . Duan, F. Luo, M. Fu, Y . Niu, and X. Gong, “Classiﬁcation via
+structure-preserved hypergraph convolution network for hyperspectral
+image,” IEEE Trans. Geosci. Remote Sens. , vol. 61, 2023, Art. no.
+5507113.
+[44] Q. Xu, S. Xu, J. Liu, and L. Huang, “Dynamic hypergraph convolu-
+tion and recursive gated convolution fusion network for hyperspectral
+image classiﬁcation,” IEEE Geosci. Remote Sens. Lett., vol. 20, pp. 1–5,
+2023.
+[45] C. Shi, D. Liao, and L. Wang, “Hybrid CNN-GCN network for hyper-
+spectral image classiﬁcation,” IEEE J. Sel. Topics Appl. Earth Observ.
+Remote Sens., vol. 18, pp. 10530–10546, 2025.
+[46] H. Z. Z. W. X. G. H. Zhou, F. Luo, and Z. Lin, “Attention multihop graph
+and multiscale convolutional fusion network for hyperspectral image
+classiﬁcation,” IEEE Trans. Geosci. Remote Sens. , vol. 61, 2023, Art.
+no. 5508614.
+[47] C. Yu, S. Zhou, M. Song, B. Gong, E. Zhao, and C.-I. Chang,
+“Unsupervised hyperspectral band selection via hybrid graph convolu-
+tional network,” IEEE Trans. Geosci. Remote Sens., vol. 60, 2022, Art.
+no. 5530515.
+[48] S. K. Roy, G. Krishna, S. R. Dubey, and B. B. Chaudhuri, “HybridSN:
+Exploring 3-D–2-D CNN feature hierarchy for hyperspectral image
+classiﬁcation,” IEEE Geosci. Remote Sens. Lett., vol. 17, no. 2,
+pp. 277–281, Feb. 2020.
+[49] L. Sun, G. Zhao, Y . Zheng, and Z. Wu, “Spectral–spatial feature
+tokenization transformer for hyperspectral image classiﬁcation,”
+IEEE Trans. Geosci. Remote Sens., vol. 60, Jan. 2022,
+Art. no. 5522214.
+[50] Z. Li, Z. Xue, Q. Xu, L. Zhang, T. Zhu, and M. Zhang, “SPFormer: Self-
+pooling transformer for few-shot hyperspectral image classiﬁcation,”
+IEEE Trans. Geosci. Remote Sens., vol. 62, 2024, Art. no.
+5502019.
+[51] Y . Li, Y . Luo, L. Zhang, Z. Wang, and B. Du, “MambaHSI:
+Spatial–spectral mamba for hyperspectral image classiﬁcation,”
+IEEE Trans. Geosci. Remote Sens., vol. 62, 2024, Art. no.
+5524216.
+[52] S. Liu, C. Fu, Y . Duan, X. Wang, and F. Luo, “Spatial–spectral
+enhancement and fusion network for hyperspectral image classiﬁcation
+with few labeled samples,” IEEE Trans. Geosci. Remote Sens., vol. 63,
+2024, Art. no. 5502414.
+[53] Y . Ding et al., “Adaptive homophily clustering: Structure homophily
+graph learning with adaptive ﬁlter for hyperspectral image,” IEEE Trans.
+Geosci. Remote Sens., vol. 63, 2025, Art. no. 5510113.
+Authorized licensed use limited to: YUNTECH-National Yunlin Univ of Science and Tech. Downloaded on June 07,2026 at 08:41:16 UTC from IEEE Xplore.  Restrictions apply. 
